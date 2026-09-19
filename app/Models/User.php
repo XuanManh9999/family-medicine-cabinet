@@ -75,4 +75,20 @@ class User extends Authenticatable
     {
         return $this->role === 'doctor_caregiver';
     }
+
+    /**
+     * Lấy URL hiển thị của ảnh đại diện (Hỗ trợ cả Base64 và file Storage)
+     */
+    public function getAvatarUrlAttribute(): ?string
+    {
+        if (empty($this->avatar)) {
+            return null;
+        }
+
+        if (str_starts_with($this->avatar, 'data:image')) {
+            return $this->avatar;
+        }
+
+        return asset('storage/' . $this->avatar);
+    }
 }

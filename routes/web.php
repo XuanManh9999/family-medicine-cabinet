@@ -5,6 +5,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\CabinetItemController;
 use App\Http\Controllers\TreatmentCourseController;
 use App\Http\Controllers\MedicationScheduleController;
+use App\Http\Controllers\MedicineExpenseController;
 use Illuminate\Support\Facades\Route;
 
 // Trang chủ: Chuyển hướng theo trạng thái đăng nhập
@@ -66,9 +67,9 @@ Route::middleware('auth')->group(function () {
     Route::patch('/schedules/{schedule}/toggle', [MedicationScheduleController::class, 'toggle'])->name('schedules.toggle');
     Route::resource('schedules', MedicationScheduleController::class);
 
-    Route::get('/expenses', function () {
-        return redirect()->route('dashboard')->with('info', 'Phân hệ Thống kê Chi phí đang được kích hoạt.');
-    })->name('expenses.index');
+    // Phân hệ Thống kê Chi phí thuốc & Viện phí gia đình
+    Route::get('/expenses/export-csv', [MedicineExpenseController::class, 'exportCsv'])->name('expenses.export-csv');
+    Route::resource('expenses', MedicineExpenseController::class);
 
     Route::get('/medicines', function () {
         return redirect()->route('dashboard')->with('info', 'Phân hệ Tra cứu Thuốc chuẩn đang được kích hoạt.');

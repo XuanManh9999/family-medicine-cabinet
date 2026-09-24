@@ -53,6 +53,11 @@ class MedicineExpense extends Model
         return $query->whereBetween('purchase_date', [$start, $end]);
     }
 
+    public function scopeInYear(Builder $query, int $year): Builder
+    {
+        return $query->whereYear('purchase_date', $year);
+    }
+
     public function scopeForMember(Builder $query, int $memberId): Builder
     {
         return $query->where('family_member_id', $memberId);
@@ -62,5 +67,16 @@ class MedicineExpense extends Model
     public function getFormattedAmountAttribute(): string
     {
         return number_format($this->amount, 0, ',', '.') . ' đ';
+    }
+
+    public function getReceiptImageUrlAttribute(): ?string
+    {
+        if (!$this->receipt_image_path) {
+            return null;
+        }
+        if (str_starts_with($this->receipt_image_path, 'http://') || str_starts_with($this->receipt_image_path, 'https://')) {
+            return $this->receipt_image_path;
+        }
+        return asset('storage/' . $this->receipt_image_path);
     }
 }

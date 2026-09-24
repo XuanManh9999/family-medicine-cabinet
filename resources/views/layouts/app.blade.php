@@ -379,6 +379,13 @@
                         <span>Lịch uống thuốc</span>
                     </a>
                 </li>
+
+                <li class="main-nav-item">
+                    <a href="{{ route('expenses.index') }}" class="main-nav-link {{ request()->routeIs('expenses.*') ? 'active' : '' }}">
+                        <i class="bi bi-cash-stack"></i>
+                        <span>Chi phí & Viện phí</span>
+                    </a>
+                </li>
             </ul>
         </div>
     </nav>

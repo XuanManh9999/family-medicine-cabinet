@@ -41,4 +41,22 @@ class PrescriptionItem extends Model
     {
         return $this->hasMany(MedicationSchedule::class);
     }
+
+    public function getDosageMorningAttribute(): ?string
+    {
+        $sched = $this->schedules->firstWhere('time_of_day', 'sang');
+        return $sched ? $sched->dosage : null;
+    }
+
+    public function getDosageNoonAttribute(): ?string
+    {
+        $sched = $this->schedules->firstWhere('time_of_day', 'trua');
+        return $sched ? $sched->dosage : null;
+    }
+
+    public function getDosageEveningAttribute(): ?string
+    {
+        $sched = $this->schedules->firstWhere('time_of_day', 'toi');
+        return $sched ? $sched->dosage : null;
+    }
 }

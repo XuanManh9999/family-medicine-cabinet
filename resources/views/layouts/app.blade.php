@@ -365,6 +365,13 @@
                         <span>Thành viên & Sức khỏe</span>
                     </a>
                 </li>
+
+                <li class="main-nav-item">
+                    <a href="{{ route('treatment-courses.index') }}" class="main-nav-link {{ request()->routeIs('treatment-courses.*') ? 'active' : '' }}">
+                        <i class="bi bi-journal-medical"></i>
+                        <span>Đơn thuốc & Điều trị</span>
+                    </a>
+                </li>
             </ul>
         </div>
     </nav>

@@ -52,6 +52,11 @@ class TreatmentCourse extends Model
         return $this->hasMany(MedicineExpense::class);
     }
 
+    public function schedules()
+    {
+        return $this->hasManyThrough(MedicationSchedule::class, PrescriptionItem::class);
+    }
+
     // Scopes
     public function scopeActive(Builder $query): Builder
     {
@@ -61,5 +66,60 @@ class TreatmentCourse extends Model
     public function scopeCompleted(Builder $query): Builder
     {
         return $query->where('status', 'da_hoan_thanh');
+    }
+
+    // Accessors
+    public function getStatusLabelAttribute(): string
+    {
+        return match ($this->status) {
+            'dang_dieu_tri' => 'Đang điều trị',
+            'da_hoan_thanh' => 'Đã hoàn thành',
+            'tam_dung' => 'Tạm dừng',
+            default => 'Không rõ',
+        };
+    }
+
+    public function getStatusBadgeClassAttribute(): string
+    {
+        return match ($this->status) {
+            'dang_dieu_tri' => 'bg-success',
+            'da_hoan_thanh' => 'bg-secondary',
+            'tam_dung' => 'bg-warning text-dark',
+            default => 'bg-light text-dark',
+        };
+    }
+
+    public function getHospitalNameAttribute(): string
+    {
+        if (!$this->hospital_doctor) {
+            return '';
+        }
+        $parts = explode('-', $this->hospital_doctor, 2);
+        return trim($parts[0]);
+    }
+
+    public function getDoctorNameAttribute(): string
+    {
+        if (!$this->hospital_doctor) {
+            return '';
+        }
+        $parts = explode('-', $this->hospital_doctor, 2);
+        return count($parts) > 1 ? trim($parts[1]) : '';
+    }
+
+    public function getPrescriptionImageUrlAttribute(): ?string
+    {
+        if (!$this->prescription_image_path) {
+            return null;
+        }
+        if (str_starts_with($this->prescription_image_path, 'http://') || str_starts_with($this->prescription_image_path, 'https://')) {
+            return $this->prescription_image_path;
+        }
+        return asset('storage/' . $this->prescription_image_path);
+    }
+
+    public function getSafetyRiskLevelAttribute(): string
+    {
+        return $this->ai_analysis_data['risk_level'] ?? ($this->ai_analysis_data['safety_status'] ?? 'safe');
     }
 }

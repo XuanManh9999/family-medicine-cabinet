@@ -222,7 +222,12 @@
         <span class="fw-bold text-dark">
             <i class="bi bi-file-earmark-medical text-primary me-2"></i>LỊCH SỬ CÁC ĐỢT ĐIỀU TRỊ / ĐƠN THUỐC BÁC SĨ ({{ $treatmentCourses->count() }})
         </span>
-        <a href="{{ route('treatment-courses.index') }}" class="small text-decoration-none">Tất cả đơn thuốc <i class="bi bi-chevron-right"></i></a>
+        <div class="d-flex align-items-center gap-2">
+            <a href="{{ route('treatment-courses.create', ['member_id' => $member->id]) }}" class="btn btn-xs btn-outline-primary py-0 px-2" style="font-size: 12px;">
+                <i class="bi bi-plus-circle me-1"></i>Kê đơn mới
+            </a>
+            <a href="{{ route('treatment-courses.index', ['member_id' => $member->id]) }}" class="small text-decoration-none">Tất cả đơn thuốc <i class="bi bi-chevron-right"></i></a>
+        </div>
     </div>
     <div class="table-responsive">
         <table class="table table-erp table-hover align-middle mb-0">
@@ -241,7 +246,9 @@
                     <tr>
                         <td class="text-center text-muted">{{ $cIdx + 1 }}</td>
                         <td>
-                            <div class="fw-bold text-dark">{{ $tc->title }}</div>
+                            <a href="{{ route('treatment-courses.show', $tc) }}" class="fw-bold text-primary text-decoration-none">
+                                {{ $tc->title }}
+                            </a>
                             <div class="text-muted small" style="font-size: 11.5px;">{{ $tc->diagnosis }}</div>
                         </td>
                         <td>

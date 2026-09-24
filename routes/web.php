@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\CabinetItemController;
+use App\Http\Controllers\TreatmentCourseController;
 use Illuminate\Support\Facades\Route;
 
 // Trang chủ: Chuyển hướng theo trạng thái đăng nhập
@@ -54,9 +55,10 @@ Route::middleware('auth')->group(function () {
     // Phân hệ Quản lý Thành viên & Hồ sơ Sức khỏe gia đình
     Route::resource('members', \App\Http\Controllers\FamilyMemberController::class);
 
-    Route::get('/treatment-courses', function () {
-        return redirect()->route('dashboard')->with('info', 'Phân hệ Đơn thuốc & Điều trị đang được kích hoạt.');
-    })->name('treatment-courses.index');
+    // Phân hệ Đơn thuốc & Đợt điều trị ngoại trú
+    Route::patch('/treatment-courses/{treatmentCourse}/toggle-status', [TreatmentCourseController::class, 'toggleStatus'])->name('treatment-courses.toggle-status');
+    Route::post('/treatment-courses/{treatmentCourse}/explain-ai', [TreatmentCourseController::class, 'explainAi'])->name('treatment-courses.explain-ai');
+    Route::resource('treatment-courses', TreatmentCourseController::class);
 
     Route::get('/schedules', function () {
         return redirect()->route('dashboard')->with('info', 'Phân hệ Lịch uống thuốc đang được kích hoạt.');

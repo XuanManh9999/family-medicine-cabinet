@@ -352,60 +352,12 @@
                     </a>
                 </li>
 
-                {{-- Tạm ẩn các tính năng chưa phát triển, sẽ mở dần theo từng phân hệ --}}
-                @if (false)
                 <li class="main-nav-item">
                     <a href="{{ route('cabinet.index') }}" class="main-nav-link {{ request()->routeIs('cabinet.*') ? 'active' : '' }}">
                         <i class="bi bi-prescription2"></i>
                         <span>Tủ thuốc</span>
                     </a>
                 </li>
-                <li class="main-nav-item">
-                    <a href="{{ route('treatment-courses.index') }}" class="main-nav-link {{ request()->routeIs('treatment-courses.*') ? 'active' : '' }}">
-                        <i class="bi bi-clipboard2-pulse"></i>
-                        <span>Đơn thuốc & Đợt điều trị</span>
-                    </a>
-                </li>
-                <li class="main-nav-item">
-                    <a href="{{ route('schedules.index') }}" class="main-nav-link {{ request()->routeIs('schedules.*') ? 'active' : '' }}">
-                        <i class="bi bi-calendar2-check"></i>
-                        <span>Lịch uống & Điểm danh</span>
-                    </a>
-                </li>
-                <li class="main-nav-item">
-                    <a href="{{ route('members.index') }}" class="main-nav-link {{ request()->routeIs('members.*') ? 'active' : '' }}">
-                        <i class="bi bi-people"></i>
-                        <span>Hồ sơ người thân</span>
-                    </a>
-                </li>
-                <li class="main-nav-item">
-                    <a href="{{ route('medicines.index') }}" class="main-nav-link {{ request()->routeIs('medicines.*') ? 'active' : '' }}">
-                        <i class="bi bi-journal-medical"></i>
-                        <span>Tra cứu dược phẩm</span>
-                    </a>
-                </li>
-                <li class="main-nav-item">
-                    <a href="{{ route('expenses.index') }}" class="main-nav-link {{ request()->routeIs('expenses.*') ? 'active' : '' }}">
-                        <i class="bi bi-cash-stack"></i>
-                        <span>Sổ chi tiêu thuốc</span>
-                    </a>
-                </li>
-                <li class="main-nav-item">
-                    <a href="{{ route('alerts.index') }}" class="main-nav-link {{ request()->routeIs('alerts.*') ? 'active' : '' }}">
-                        <i class="bi bi-shield-exclamation"></i>
-                        <span>Cảnh báo an toàn</span>
-                        @if ($unreadAlertsCount > 0)
-                            <span class="badge bg-warning text-dark ms-1" style="font-size: 10px;">{{ $unreadAlertsCount }}</span>
-                        @endif
-                    </a>
-                </li>
-                <li class="main-nav-item">
-                    <a href="{{ route('ai-assistant.index') }}" class="main-nav-link {{ request()->routeIs('ai-assistant.*') ? 'active' : '' }}">
-                        <i class="bi bi-robot"></i>
-                        <span>Trợ lý AI Gemini</span>
-                    </a>
-                </li>
-                @endif
             </ul>
         </div>
     </nav>

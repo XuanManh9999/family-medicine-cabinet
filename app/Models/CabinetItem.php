@@ -81,17 +81,58 @@ class CabinetItem extends Model
 
     public function getDaysUntilExpiryAttribute(): int
     {
-        return Carbon::today()->diffInDays(Carbon::parse($this->expiry_date), false);
+        $expiry = Carbon::parse($this->expiry_date)->startOfDay();
+        return (int) Carbon::today()->diffInDays($expiry, false);
     }
 
     public function getIsExpiredAttribute(): bool
     {
-        return Carbon::parse($this->expiry_date)->isPast();
+        return Carbon::parse($this->expiry_date)->startOfDay()->lt(Carbon::today());
     }
 
     public function getIsNearExpiryAttribute(): bool
     {
         $days = $this->days_until_expiry;
         return $days >= 0 && $days <= 30;
+    }
+
+    public function getExpiryRemainingTextAttribute(): string
+    {
+        $expiry = Carbon::parse($this->expiry_date)->startOfDay();
+        $today = Carbon::today();
+
+        if ($expiry->lt($today)) {
+            $daysAgo = abs($this->days_until_expiry);
+            return $daysAgo === 0 ? 'Hết hạn hôm nay' : "Đã hết hạn {$daysAgo} ngày";
+        }
+
+        $days = $this->days_until_expiry;
+        if ($days === 0) {
+            return 'Hết hạn trong hôm nay';
+        }
+        if ($days <= 30) {
+            return "Cận hạn: còn {$days} ngày";
+        }
+        if ($days < 365) {
+            $months = max(1, (int) round($days / 30.4));
+            return "Còn {$months} tháng ({$days} ngày)";
+        }
+        $years = round($days / 365.25, 1);
+        return "Còn ~{$years} năm ({$days} ngày)";
+    }
+
+    public function getIsLowStockAttribute(): bool
+    {
+        return (float) $this->quantity > 0 && (float) $this->quantity <= 5;
+    }
+
+    public function getIsOutOfStockAttribute(): bool
+    {
+        return (float) $this->quantity <= 0;
+    }
+
+    public function getTotalValueAttribute(): float
+    {
+        return (float) $this->quantity * (float) ($this->price_per_unit ?? 0);
     }
 }

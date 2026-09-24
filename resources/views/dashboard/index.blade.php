@@ -41,7 +41,7 @@
     <div class="col-6 col-md-3">
         <div class="kpi-box">
             <div>
-                <div class="kpi-title">Tồn kho sắp hết (≤5)</div>
+                <div class="kpi-title">Tồn kho ít (≤5)</div>
                 <div class="kpi-number text-secondary">{{ $lowStockItemsCount }} <small class="text-muted fw-normal" style="font-size: 12px;">loại</small></div>
             </div>
             <div class="text-secondary fs-3 opacity-50">
@@ -96,7 +96,7 @@
                 </div>
                 <div class="form-check mb-1">
                     <input class="form-check-input" type="checkbox" id="checkLowStock">
-                    <label class="form-check-label" for="checkLowStock">Sắp hết tồn kho</label>
+                    <label class="form-check-label" for="checkLowStock">Tồn kho ít (≤ 5)</label>
                 </div>
             </div>
 

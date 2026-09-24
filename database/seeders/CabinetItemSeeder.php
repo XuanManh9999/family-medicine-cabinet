@@ -162,7 +162,7 @@ class CabinetItemSeeder extends Seeder
             // 4. Thuốc sắp hết số lượng (Low Stock)
             [
                 'medicine_name' => 'Băng cá nhân Urgo Waterproof',
-                'custom_name' => 'Băng dán Urgo chống nước (Sắp hết)',
+                'custom_name' => 'Băng dán Urgo chống nước',
                 'batch_number' => 'URG-771',
                 'manufacturing_date' => Carbon::now()->subMonths(6)->toDateString(),
                 'expiry_date' => Carbon::now()->addMonths(24)->toDateString(),
@@ -175,7 +175,7 @@ class CabinetItemSeeder extends Seeder
             ],
             [
                 'medicine_name' => 'Efferalgan 500mg',
-                'custom_name' => 'Efferalgan sủi hạ sốt (Còn ít)',
+                'custom_name' => 'Efferalgan sủi hạ sốt 500mg',
                 'batch_number' => 'EFF-881',
                 'manufacturing_date' => Carbon::now()->subMonths(4)->toDateString(),
                 'expiry_date' => Carbon::now()->addMonths(16)->toDateString(),

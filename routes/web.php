@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\CabinetItemController;
 use Illuminate\Support\Facades\Route;
 
 // Trang chủ: Chuyển hướng theo trạng thái đăng nhập
@@ -38,9 +39,17 @@ Route::middleware('auth')->group(function () {
     Route::post('/profile', [AuthController::class, 'updateProfile'])->name('profile.update');
 
     // Các phân hệ tiếp theo (tạm thời trỏ về view/thông báo tính năng đang phát triển)
-    Route::get('/cabinet', function () {
-        return redirect()->route('dashboard')->with('info', 'Phân hệ Quản lý Tủ thuốc đang được kích hoạt.');
-    })->name('cabinet.index');
+    // Tủ thuốc gia đình
+    Route::get('/cabinet', [CabinetItemController::class, 'index'])->name('cabinet.index');
+    Route::get('/cabinet/export-excel', [CabinetItemController::class, 'exportExcel'])->name('cabinet.export-excel');
+    Route::get('/cabinet/sample-excel', [CabinetItemController::class, 'sampleExcel'])->name('cabinet.sample-excel');
+    Route::post('/cabinet/import-excel', [CabinetItemController::class, 'importExcel'])->name('cabinet.import-excel');
+    Route::get('/cabinet/items/create', [CabinetItemController::class, 'create'])->name('cabinet.items.create');
+    Route::post('/cabinet/items', [CabinetItemController::class, 'store'])->name('cabinet.items.store');
+    Route::get('/cabinet/items/{cabinetItem}/edit', [CabinetItemController::class, 'edit'])->name('cabinet.items.edit');
+    Route::put('/cabinet/items/{cabinetItem}', [CabinetItemController::class, 'update'])->name('cabinet.items.update');
+    Route::patch('/cabinet/items/{cabinetItem}/quantity', [CabinetItemController::class, 'updateQuantity'])->name('cabinet.items.quantity');
+    Route::delete('/cabinet/items/{cabinetItem}', [CabinetItemController::class, 'destroy'])->name('cabinet.items.destroy');
 
     Route::get('/members', function () {
         return redirect()->route('dashboard')->with('info', 'Phân hệ Hồ sơ Thành viên đang được kích hoạt.');

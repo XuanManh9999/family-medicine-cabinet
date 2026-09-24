@@ -372,6 +372,13 @@
                         <span>Đơn thuốc & Điều trị</span>
                     </a>
                 </li>
+
+                <li class="main-nav-item">
+                    <a href="{{ route('schedules.index') }}" class="main-nav-link {{ request()->routeIs('schedules.*') ? 'active' : '' }}">
+                        <i class="bi bi-alarm"></i>
+                        <span>Lịch uống thuốc</span>
+                    </a>
+                </li>
             </ul>
         </div>
     </nav>

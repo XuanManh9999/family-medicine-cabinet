@@ -56,20 +56,38 @@ class MedicationSchedule extends Model
     }
 
     // Scopes
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('is_active', true);
+    }
+
     public function scopeActiveToday(Builder $query): Builder
     {
-        $today = Carbon::today();
+        return $this->scopeActiveOnDate($query, Carbon::today());
+    }
+
+    public function scopeActiveOnDate(Builder $query, Carbon|string $date): Builder
+    {
+        $d = is_string($date) ? Carbon::parse($date)->startOfDay() : $date->copy()->startOfDay();
         return $query->where('is_active', true)
-            ->where('start_date', '<=', $today)
-            ->where(function ($q) use ($today) {
+            ->where('start_date', '<=', $d)
+            ->where(function ($q) use ($d) {
                 $q->whereNull('end_date')
-                  ->orWhere('end_date', '>=', $today);
+                  ->orWhere('end_date', '>=', $d);
             });
     }
 
     public function scopeForMember(Builder $query, int $memberId): Builder
     {
         return $query->where('family_member_id', $memberId);
+    }
+
+    public function getLogForDate(Carbon|string $date): ?MedicationLog
+    {
+        $targetDate = is_string($date) ? Carbon::parse($date)->toDateString() : $date->toDateString();
+        return $this->logs->first(function ($log) use ($targetDate) {
+            return $log->scheduled_time && $log->scheduled_time->toDateString() === $targetDate;
+        });
     }
 
     // Accessors
@@ -81,6 +99,28 @@ class MedicationSchedule extends Model
             'chieu' => 'Chiều',
             'toi' => 'Tối',
             default => ucfirst($this->time_of_day),
+        };
+    }
+
+    public function getTimeOfDayIconAttribute(): string
+    {
+        return match ($this->time_of_day) {
+            'sang' => 'bi bi-brightness-high text-warning',
+            'trua' => 'bi bi-sun text-info',
+            'chieu' => 'bi bi-sunset text-warning-emphasis',
+            'toi' => 'bi bi-moon-stars text-primary',
+            default => 'bi bi-clock text-secondary',
+        };
+    }
+
+    public function getTimeOfDayBadgeClassAttribute(): string
+    {
+        return match ($this->time_of_day) {
+            'sang' => 'bg-warning text-dark',
+            'trua' => 'bg-info text-dark',
+            'chieu' => 'bg-secondary text-white',
+            'toi' => 'bg-primary text-white',
+            default => 'bg-light text-dark',
         };
     }
 

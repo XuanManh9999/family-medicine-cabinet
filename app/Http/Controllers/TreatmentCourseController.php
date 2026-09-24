@@ -101,7 +101,7 @@ class TreatmentCourseController extends Controller
 
         $preselectedMemberId = $request->query('member_id');
         $availableMedicines = Medicine::orderBy('name')->take(50)->get(['id', 'name', 'active_ingredient', 'concentration', 'default_unit']);
-        $cabinetItems = $family->cabinetItems()->with('medicine')->where('current_quantity', '>', 0)->get();
+        $cabinetItems = $family->cabinetItems()->with('medicine')->where('quantity', '>', 0)->get();
 
         $treatmentCourse = new TreatmentCourse([
             'start_date' => Carbon::today(),
@@ -280,7 +280,7 @@ class TreatmentCourseController extends Controller
         $family = $request->user()->family;
         $members = $family->members()->orderBy('name')->get();
         $availableMedicines = Medicine::orderBy('name')->take(50)->get(['id', 'name', 'active_ingredient', 'concentration', 'default_unit']);
-        $cabinetItems = $family->cabinetItems()->with('medicine')->where('current_quantity', '>', 0)->get();
+        $cabinetItems = $family->cabinetItems()->with('medicine')->where('quantity', '>', 0)->get();
 
         $treatmentCourse->load('prescriptionItems.schedules');
 

@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\CabinetItemController;
 use App\Http\Controllers\TreatmentCourseController;
+use App\Http\Controllers\MedicationScheduleController;
 use Illuminate\Support\Facades\Route;
 
 // Trang chủ: Chuyển hướng theo trạng thái đăng nhập
@@ -60,9 +61,10 @@ Route::middleware('auth')->group(function () {
     Route::post('/treatment-courses/{treatmentCourse}/explain-ai', [TreatmentCourseController::class, 'explainAi'])->name('treatment-courses.explain-ai');
     Route::resource('treatment-courses', TreatmentCourseController::class);
 
-    Route::get('/schedules', function () {
-        return redirect()->route('dashboard')->with('info', 'Phân hệ Lịch uống thuốc đang được kích hoạt.');
-    })->name('schedules.index');
+    // Phân hệ Lịch uống thuốc & Nhật ký tuân thủ điều trị
+    Route::post('/schedules/log', [MedicationScheduleController::class, 'recordLog'])->name('schedules.log');
+    Route::patch('/schedules/{schedule}/toggle', [MedicationScheduleController::class, 'toggle'])->name('schedules.toggle');
+    Route::resource('schedules', MedicationScheduleController::class);
 
     Route::get('/expenses', function () {
         return redirect()->route('dashboard')->with('info', 'Phân hệ Thống kê Chi phí đang được kích hoạt.');

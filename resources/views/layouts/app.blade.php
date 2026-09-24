@@ -386,6 +386,16 @@
                         <span>Chi phí & Viện phí</span>
                     </a>
                 </li>
+
+                <li class="main-nav-item">
+                    <a href="{{ route('alerts.index') }}" class="main-nav-link {{ request()->routeIs('alerts.*') ? 'active' : '' }}">
+                        <i class="bi bi-shield-exclamation"></i>
+                        <span>Cảnh báo an toàn</span>
+                        @if ($unreadAlertsCount > 0)
+                            <span class="badge bg-danger rounded-pill ms-1" style="font-size: 10px; padding: 2px 6px;">{{ $unreadAlertsCount }}</span>
+                        @endif
+                    </a>
+                </li>
             </ul>
         </div>
     </nav>

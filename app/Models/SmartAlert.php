@@ -59,14 +59,79 @@ class SmartAlert extends Model
         return $query->orderBy('created_at', 'desc')->limit($limit);
     }
 
+    public function scopeLevel(Builder $query, ?string $level): Builder
+    {
+        if ($level && in_array($level, ['danger', 'warning', 'info'])) {
+            return $query->where('level', $level);
+        }
+        return $query;
+    }
+
+    public function scopeType(Builder $query, ?string $type): Builder
+    {
+        if ($type) {
+            return $query->where('type', $type);
+        }
+        return $query;
+    }
+
     // Accessors
-    public function getBadgeClassAttribute(): string
+    public function getMessageAttribute(): string
+    {
+        return $this->content ?? '';
+    }
+
+    public function getTypeLabelAttribute(): string
+    {
+        return match ($this->type) {
+            'expired' => 'Thuốc đã hết hạn',
+            'near_expiry' => 'Cận date (< 30 ngày)',
+            'low_stock' => 'Sắp hết tồn kho',
+            'schedule_reminder' => 'Nhắc nhở uống thuốc',
+            'drug_interaction' => 'Tương tác thuốc nguy hiểm',
+            default => 'Cảnh báo y tế',
+        };
+    }
+
+    public function getTypeIconAttribute(): string
+    {
+        return match ($this->type) {
+            'expired' => 'bi-exclamation-octagon-fill text-danger',
+            'near_expiry' => 'bi-hourglass-split text-warning',
+            'low_stock' => 'bi-box-seam text-warning',
+            'schedule_reminder' => 'bi-alarm text-info',
+            'drug_interaction' => 'bi-capsule-pill text-danger',
+            default => 'bi-bell text-secondary',
+        };
+    }
+
+    public function getLevelLabelAttribute(): string
     {
         return match ($this->level) {
-            'danger' => 'bg-red-100 text-red-700 border-red-300',
-            'warning' => 'bg-amber-100 text-amber-700 border-amber-300',
-            'info' => 'bg-blue-100 text-blue-700 border-blue-300',
-            default => 'bg-gray-100 text-gray-700 border-gray-300',
+            'danger' => 'Nguy hiểm',
+            'warning' => 'Cảnh báo',
+            'info' => 'Thông tin',
+            default => 'Thông thường',
+        };
+    }
+
+    public function getLevelBadgeClassAttribute(): string
+    {
+        return match ($this->level) {
+            'danger' => 'bg-danger text-white',
+            'warning' => 'bg-warning text-dark',
+            'info' => 'bg-info text-dark',
+            default => 'bg-secondary text-white',
+        };
+    }
+
+    public function getLevelSubtleBadgeClassAttribute(): string
+    {
+        return match ($this->level) {
+            'danger' => 'bg-danger-subtle text-danger border border-danger-subtle',
+            'warning' => 'bg-warning-subtle text-warning-emphasis border border-warning-subtle',
+            'info' => 'bg-info-subtle text-info-emphasis border border-info-subtle',
+            default => 'bg-secondary-subtle text-secondary border border-secondary-subtle',
         };
     }
 }

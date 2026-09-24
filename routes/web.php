@@ -6,6 +6,7 @@ use App\Http\Controllers\CabinetItemController;
 use App\Http\Controllers\TreatmentCourseController;
 use App\Http\Controllers\MedicationScheduleController;
 use App\Http\Controllers\MedicineExpenseController;
+use App\Http\Controllers\SmartAlertController;
 use Illuminate\Support\Facades\Route;
 
 // Trang chủ: Chuyển hướng theo trạng thái đăng nhập
@@ -79,7 +80,10 @@ Route::middleware('auth')->group(function () {
         return redirect()->route('dashboard')->with('info', 'Trợ lý Y tế AI đang được kích hoạt.');
     })->name('ai-assistant.index');
 
-    Route::get('/alerts', function () {
-        return redirect()->route('dashboard')->with('info', 'Hệ thống Cảnh báo Thông minh.');
-    })->name('alerts.index');
+    // Phân hệ Trung tâm Cảnh báo Thông minh
+    Route::post('/alerts/scan', [SmartAlertController::class, 'scan'])->name('alerts.scan');
+    Route::post('/alerts/mark-all-read', [SmartAlertController::class, 'markAllAsRead'])->name('alerts.mark-all-read');
+    Route::patch('/alerts/{alert}/read', [SmartAlertController::class, 'markAsRead'])->name('alerts.read');
+    Route::delete('/alerts/{alert}', [SmartAlertController::class, 'destroy'])->name('alerts.destroy');
+    Route::get('/alerts', [SmartAlertController::class, 'index'])->name('alerts.index');
 });

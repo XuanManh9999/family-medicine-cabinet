@@ -73,7 +73,65 @@ class FamilyMember extends Model
             'vo_chong' => 'Vợ / Chồng',
             'con_cai' => 'Con cái',
             'ban_than' => 'Bản thân',
-            default => 'Thành viên khác',
+            default => 'Người thân khác',
         };
+    }
+
+    public function getRelationshipTextAttribute(): string
+    {
+        return $this->relationship_label;
+    }
+
+    public function getBloodGroupAttribute(): ?string
+    {
+        return $this->blood_type;
+    }
+
+    public function getGenderLabelAttribute(): string
+    {
+        return match ($this->gender) {
+            'nam' => 'Nam',
+            'nu' => 'Nữ',
+            default => 'Khác',
+        };
+    }
+
+    public function getAvatarUrlAttribute(): string
+    {
+        if ($this->avatar) {
+            if (str_starts_with($this->avatar, 'http') || str_starts_with($this->avatar, 'data:')) {
+                return $this->avatar;
+            }
+            return asset('storage/' . $this->avatar);
+        }
+
+        // Tạo avatar chữ cái mặc định với màu gradient nhẹ
+        $bgColor = match ($this->gender) {
+            'nu' => 'e91e63',
+            'nam' => '0284c7',
+            default => '64748b',
+        };
+
+        return 'https://ui-avatars.com/api/?name=' . urlencode($this->name) . '&background=' . $bgColor . '&color=ffffff&size=128&bold=true';
+    }
+
+    public function getIsElderlyAttribute(): bool
+    {
+        return $this->age !== null && $this->age >= 60;
+    }
+
+    public function getIsChildAttribute(): bool
+    {
+        return $this->age !== null && $this->age < 16;
+    }
+
+    public function getHasAllergiesAttribute(): bool
+    {
+        return !empty(trim((string)$this->allergies));
+    }
+
+    public function getHasUnderlyingDiseasesAttribute(): bool
+    {
+        return !empty(trim((string)$this->underlying_diseases));
     }
 }

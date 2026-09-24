@@ -358,6 +358,13 @@
                         <span>Tủ thuốc</span>
                     </a>
                 </li>
+
+                <li class="main-nav-item">
+                    <a href="{{ route('members.index') }}" class="main-nav-link {{ request()->routeIs('members.*') ? 'active' : '' }}">
+                        <i class="bi bi-people"></i>
+                        <span>Thành viên & Sức khỏe</span>
+                    </a>
+                </li>
             </ul>
         </div>
     </nav>

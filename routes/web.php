@@ -51,9 +51,8 @@ Route::middleware('auth')->group(function () {
     Route::patch('/cabinet/items/{cabinetItem}/quantity', [CabinetItemController::class, 'updateQuantity'])->name('cabinet.items.quantity');
     Route::delete('/cabinet/items/{cabinetItem}', [CabinetItemController::class, 'destroy'])->name('cabinet.items.destroy');
 
-    Route::get('/members', function () {
-        return redirect()->route('dashboard')->with('info', 'Phân hệ Hồ sơ Thành viên đang được kích hoạt.');
-    })->name('members.index');
+    // Phân hệ Quản lý Thành viên & Hồ sơ Sức khỏe gia đình
+    Route::resource('members', \App\Http\Controllers\FamilyMemberController::class);
 
     Route::get('/treatment-courses', function () {
         return redirect()->route('dashboard')->with('info', 'Phân hệ Đơn thuốc & Điều trị đang được kích hoạt.');

@@ -148,7 +148,7 @@ class TreatmentCourseManagementTest extends TestCase
 
         $response = $this->actingAs($this->user)->post(route('treatment-courses.store'), $payload);
 
-        $course = TreatmentCourse::where('family_id', $this->family->id)->latest()->first();
+        $course = TreatmentCourse::where('family_id', $this->family->id)->latest('id')->first();
         $this->assertNotNull($course);
         $response->assertRedirect(route('treatment-courses.show', $course));
 
@@ -192,7 +192,7 @@ class TreatmentCourseManagementTest extends TestCase
 
         $response = $this->actingAs($this->user)->post(route('treatment-courses.store'), $payload);
 
-        $course = TreatmentCourse::where('family_id', $this->family->id)->latest()->first();
+        $course = TreatmentCourse::where('family_id', $this->family->id)->latest('id')->first();
         $this->assertNotNull($course);
 
         // AI Rule Engine phát hiện dị ứng NSAID/Aspirin

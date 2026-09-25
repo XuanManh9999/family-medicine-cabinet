@@ -264,6 +264,168 @@ PROMPT;
     }
 
     /**
+     * Tư vấn y tế gia đình AI qua trò chuyện (Medical AI Chat Assistant)
+     *
+     * @param string $question Câu hỏi của người dùng
+     * @param array $familyContext Ngữ cảnh tủ thuốc và các thành viên gia đình
+     * @return array Kết quả câu trả lời và các lưu ý an toàn
+     */
+    public function askMedicalAssistant(string $question, array $familyContext = []): array
+    {
+        $contextJson = json_encode($familyContext, JSON_UNESCAPED_UNICODE);
+
+        $prompt = <<<PROMPT
+Bạn là Trợ lý Y tế & Dược sĩ Gia đình AI thông thái, tận tụy và đáng tin cậy.
+Hãy trả lời câu hỏi y tế sau của người dùng bằng tiếng Việt chuẩn mực, rõ ràng, dễ hiểu cho mọi lứa tuổi:
+
+Câu hỏi của người dùng:
+"{$question}"
+
+Ngữ cảnh hồ sơ sức khỏe & tủ thuốc gia đình (nếu có):
+{$contextJson}
+
+Yêu cầu trả lời:
+1. Giải thích cụ thể, chính xác theo hướng dẫn dược lâm sàng và y khoa thực hành.
+2. Dặn dò các lưu ý quan trọng, kiêng khem, hoặc cách xử trí an toàn tại nhà.
+3. Luôn đưa ra lời khuyến cáo rõ ràng khi nào cần đến cơ sở y tế / bác sĩ thăm khám.
+
+Trả lời dưới định dạng JSON thuần:
+{
+  "answer": "Câu trả lời chi tiết, ấm áp và chuyên nghiệp của bạn",
+  "key_points": [
+    "Ý chính cần ghi nhớ 1",
+    "Ý chính cần ghi nhớ 2"
+  ],
+  "safety_warning": "Khuyến cáo an toàn y tế quan trọng (nếu có)",
+  "suggested_actions": [
+    "Hành động nên làm 1",
+    "Hành động nên làm 2"
+  ]
+}
+PROMPT;
+
+        if (empty($this->apiKey)) {
+            return $this->getLocalRuleChatResponse($question, $familyContext);
+        }
+
+        try {
+            $payload = [
+                'contents' => [
+                    [
+                        'parts' => [
+                            ['text' => $prompt],
+                        ],
+                    ],
+                ],
+                'generationConfig' => [
+                    'temperature' => 0.3,
+                    'responseMimeType' => 'application/json',
+                ],
+            ];
+
+            $response = Http::timeout(45)
+                ->post("{$this->baseUrl}/models/{$this->model}:generateContent?key={$this->apiKey}", $payload);
+
+            if ($response->successful()) {
+                $rawText = $response->json('candidates.0.content.parts.0.text');
+                return $this->cleanAndParseJson($rawText);
+            }
+
+            Log::error('Gemini Chat API error', ['status' => $response->status(), 'body' => $response->body()]);
+            return $this->getLocalRuleChatResponse($question, $familyContext);
+        } catch (Exception $e) {
+            Log::error('Gemini Chat Exception: ' . $e->getMessage());
+            return $this->getLocalRuleChatResponse($question, $familyContext);
+        }
+    }
+
+    /**
+     * Phản hồi thông minh nội bộ khi chưa có API Key
+     */
+    protected function getLocalRuleChatResponse(string $question, array $familyContext = []): array
+    {
+        $q = mb_strtolower($question, 'UTF-8');
+
+        if (str_contains($q, 'quên') && str_contains($q, 'liều')) {
+            return [
+                'answer' => 'Khi quên uống 1 liều thuốc: Hãy uống ngay khi nhớ ra nếu thời điểm nhớ ra còn xa liều kế tiếp. Nếu đã gần đến giờ uống liều tiếp theo (dưới 2-3 tiếng), hãy bỏ qua liều đã quên và uống liều tiếp theo đúng lịch. TUYỆT ĐỐI KHÔNG UỐNG GẤP ĐÔI LIỀU để bù liều đã quên vì có thể gây ngộ độc hoặc tác dụng phụ nguy hiểm.',
+                'key_points' => [
+                    'Uống ngay nếu thời gian còn xa cữ tiếp theo',
+                    'Bỏ qua nếu gần đến giờ uống cữ kế tiếp',
+                    'Không bao giờ uống gấp đôi liều để bù',
+                ],
+                'safety_warning' => 'Đặc biệt cẩn trọng với các nhóm thuốc tim mạch, huyết áp, kháng sinh và thuốc tiểu đường.',
+                'suggested_actions' => [
+                    'Kiểm tra lại lịch uống trên ứng dụng MedCabinet',
+                    'Bật thông báo cữ uống để tránh quên lần sau',
+                ],
+            ];
+        }
+
+        if (str_contains($q, 'bảo quản') || str_contains($q, 'nhiệt độ')) {
+            return [
+                'answer' => 'Quy tắc bảo quản thuốc gia đình chuẩn: Hầu hết các loại thuốc nên để ở nơi khô ráo, thoáng mát (dưới 30°C), tránh ánh nắng mặt trời trực tiếp và tránh ẩm ướt (không để trong nhà tắm). Một số thuốc đặc biệt như men vi sinh dạng lỏng, insulin hoặc thuốc nhỏ mắt sau mở nắp cần bảo quản ngăn mát tủ lạnh (2-8°C). Luôn để tủ thuốc ở vị trí cao khỏi tầm với của trẻ nhỏ.',
+                'key_points' => [
+                    'Nhiệt độ phòng < 30°C, khô thoáng',
+                    'Tránh ánh nắng mặt trời và nơi ẩm ướt',
+                    'Đặt tủ thuốc trên cao an toàn với trẻ nhỏ',
+                ],
+                'safety_warning' => 'Không sử dụng thuốc đã đổi màu, biến chất, viên nang bị chảy dính hoặc viên nén bị vỡ nát.',
+                'suggested_actions' => [
+                    'Kiểm tra định kỳ ngăn tủ trên ứng dụng',
+                    'Bỏ các vỏ thuốc không còn rõ hạn sử dụng',
+                ],
+            ];
+        }
+
+        if (str_contains($q, 'trước ăn') || str_contains($q, 'sau ăn') || str_contains($q, 'uống lúc nào')) {
+            return [
+                'answer' => 'Thời điểm uống thuốc phụ thuộc vào từng nhóm hoạt chất: Thuốc uống trước ăn (30-60 phút) thường là thuốc bảo vệ niêm mạc dạ dày (như Omeprazole, Esomeprazole) hoặc thuốc bị thức ăn cản trở hấp thu. Thuốc uống sau ăn (ngay sau ăn no hoặc 15-30 phút) là các thuốc kháng viêm giảm đau (Ibuprofen, Paracetamol), kháng sinh nhằm tránh kích ứng viêm loét dạ dày.',
+                'key_points' => [
+                    'Trước ăn 30-60 phút: Thuốc bao tử, một số thuốc tuyến giáp',
+                    'Sau ăn no: Kháng sinh, thuốc giảm đau hạ sốt, vitamin tan trong dầu (A, D, E, K)',
+                    'Uống với nhiều nước lọc ấm (khoảng 150-200ml)',
+                ],
+                'safety_warning' => 'Không uống thuốc cùng nước trà đặc, sữa, nước ngọt có ga hoặc rượu bia.',
+                'suggested_actions' => [
+                    'Kiểm tra cột "Cách dùng" trong đơn thuốc trên ứng dụng',
+                ],
+            ];
+        }
+
+        if (str_contains($q, 'sốt') || str_contains($q, 'paracetamol') || str_contains($q, 'hạ sốt')) {
+            return [
+                'answer' => 'Hướng dẫn dùng thuốc hạ sốt an toàn: Paracetamol là lựa chọn đầu tay an toàn nhất. Liều dùng chuẩn cho người lớn là 500mg - 650mg/lần; cho trẻ em là 10-15mg/kg cân nặng/lần. Khoảng cách giữa 2 lần uống tối thiểu từ 4 đến 6 tiếng. Người lớn không uống quá 4000mg/ngày. Nếu sốt trên 39.5°C không hạ sau 2 liều hoặc kéo dài quá 3 ngày, cần đưa người bệnh đến bệnh viện kiểm tra.',
+                'key_points' => [
+                    'Khoảng cách tối thiểu 4 - 6 tiếng giữa 2 lần uống',
+                    'Uống đủ nước, chườm ấm các vùng bẹn nách',
+                    'Không uống cùng lúc nhiều chế phẩm có chứa Paracetamol',
+                ],
+                'safety_warning' => 'Uống quá liều Paracetamol có thể gây viêm gan và hoại tử tế bào gan cấp tính.',
+                'suggested_actions' => [
+                    'Kiểm tra các thuốc hạ sốt hiện có trong tủ thuốc',
+                    'Đo lại thân nhiệt sau khi uống thuốc 45-60 phút',
+                ],
+            ];
+        }
+
+        // Mặc định câu trả lời tư vấn y tế
+        return [
+            'answer' => 'Chào bạn! Về câu hỏi y tế: "' . $question . '". Trong quá trình chăm sóc sức khỏe gia đình, bạn nên tuân thủ chặt chẽ chỉ định của bác sĩ hoặc hướng dẫn trên tờ toa thuốc đính kèm. Hãy đảm bảo uống đúng liều lượng, đúng thời điểm (trước/sau ăn) và kiểm tra hạn sử dụng của thuốc trong tủ thuốc gia đình trước khi dùng.',
+            'key_points' => [
+                'Đọc kỹ hướng dẫn sử dụng và hạn dùng trước khi uống',
+                'Uống đủ lượng nước lọc và duy trì giờ giấc đều đặn',
+                'Theo dõi phản ứng bất thường của cơ thể sau khi dùng thuốc',
+            ],
+            'safety_warning' => 'Nếu người bệnh có triệu chứng nặng như khó thở, phát ban dị ứng, đau ngực hoặc sốt li bì, hãy gọi cấp cứu hoặc đến cơ sở y tế gần nhất.',
+            'suggested_actions' => [
+                'Kiểm tra lại danh mục thuốc trong tủ thuốc gia đình',
+                'Hỏi ý kiến dược sĩ/bác sĩ khi phối hợp nhiều loại thuốc mới',
+            ],
+        ];
+    }
+
+    /**
      * Chuyển đổi file ảnh sang chuỗi Base64
      */
     protected function prepareImageBase64(string $imagePathOrBase64, ?string &$mimeType): string

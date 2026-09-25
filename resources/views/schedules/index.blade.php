@@ -126,6 +126,11 @@
                     <i class="bi bi-journal-check me-1"></i>Nhật ký tuân thủ chi tiết
                 </a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link {{ $viewMode === 'calendar' ? 'active fw-bold' : 'text-dark' }}" href="{{ route('schedules.index', array_merge(request()->query(), ['view' => 'calendar'])) }}">
+                    <i class="bi bi-calendar3 me-1"></i>Lịch tương tác (FullCalendar)
+                </a>
+            </li>
         </ul>
 
         <!-- FILTER BAR -->
@@ -538,6 +543,95 @@
     </div>
 @endif
 
+<!-- ========================================== -->
+<!-- VIEW 4: LỊCH TƯƠNG TÁC (FULLCALENDAR)      -->
+<!-- ========================================== -->
+@if ($viewMode === 'calendar')
+    <div class="content-card mb-3">
+        <div class="content-card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <span class="fw-bold text-dark"><i class="bi bi-calendar-week text-primary me-1"></i>Lịch biểu uống thuốc tương tác</span>
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">FullCalendar 6.x</span>
+            </div>
+            <div class="d-flex align-items-center gap-2 small flex-wrap">
+                <span class="d-flex align-items-center gap-1"><span class="badge" style="background-color: #d97706;">&nbsp;</span> Sáng</span>
+                <span class="d-flex align-items-center gap-1"><span class="badge" style="background-color: #0284c7;">&nbsp;</span> Trưa</span>
+                <span class="d-flex align-items-center gap-1"><span class="badge" style="background-color: #475569;">&nbsp;</span> Chiều</span>
+                <span class="d-flex align-items-center gap-1"><span class="badge" style="background-color: #2563eb;">&nbsp;</span> Tối</span>
+                <span class="d-flex align-items-center gap-1 ms-2"><span class="badge bg-success">&nbsp;</span> Đã uống</span>
+                <span class="d-flex align-items-center gap-1"><span class="badge bg-danger">&nbsp;</span> Quên / Bỏ qua</span>
+            </div>
+        </div>
+        <div class="content-card-body p-3 bg-white">
+            <div id="fullCalendarApp" style="min-height: 600px;"></div>
+        </div>
+    </div>
+
+    <!-- MODAL: CHI TIẾT SỰ KIỆN UỐNG THUỐC TRÊN LỊCH -->
+    <div class="modal fade" id="calendarEventModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow border-0">
+                <div class="modal-header bg-light py-2">
+                    <h6 class="modal-title fw-bold text-primary d-flex align-items-center gap-2">
+                        <i class="bi bi-alarm"></i>
+                        <span>Chi tiết cữ uống thuốc</span>
+                    </h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <div class="d-flex align-items-center justify-content-between p-2 bg-light rounded mb-3 border">
+                        <div>
+                            <div class="text-muted small">Thành viên:</div>
+                            <h6 class="fw-bold text-dark mb-0" id="calEventMember">--</h6>
+                        </div>
+                        <span class="badge" id="calEventStatusBadge">--</span>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-12">
+                            <div class="border rounded p-2 bg-white">
+                                <div class="text-muted small">Thuốc & Liều lượng:</div>
+                                <div class="fw-bold fs-6 text-primary" id="calEventMedName">--</div>
+                                <div class="text-secondary small mt-1">
+                                    Liều: <strong id="calEventDosage">--</strong> | Đơn vị: <strong id="calEventUnit">--</strong>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border rounded p-2 bg-white h-100">
+                                <div class="text-muted small">Cữ & Giờ quy định:</div>
+                                <div class="fw-semibold text-dark" id="calEventTime">--</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="border rounded p-2 bg-white h-100">
+                                <div class="text-muted small">Thời điểm dùng:</div>
+                                <div class="fw-semibold text-dark" id="calEventMeal">--</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="calEventNoteBox" class="alert alert-light border small py-2 mb-3 d-none">
+                        <strong>Ghi chú:</strong> <span id="calEventNoteText">--</span>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center border-top pt-2">
+                        <span class="small text-muted">Điểm danh nhanh:</span>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-success" id="btnCalMarkTaken">
+                                <i class="bi bi-check-lg me-1"></i>Đã uống
+                            </button>
+                            <button type="button" class="btn btn-outline-danger" id="btnCalMarkSkip">
+                                <i class="bi bi-x-lg me-1"></i>Quên / Bỏ qua
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+@endif
+
 <!-- MODAL: GHI NHẬN ĐÃ UỐNG KÈM GHI CHÚ & TRỪ KHO -->
 <div class="modal fade" id="takeMedModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -686,5 +780,102 @@ function openSkipMedModal(scheduleId, medName, scheduledTimeStr) {
     new bootstrap.Modal(document.getElementById('skipMedModal')).show();
 }
 </script>
+
+@if ($viewMode === 'calendar')
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const calendarEl = document.getElementById('fullCalendarApp');
+    if (!calendarEl) return;
+
+    const calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+        },
+        buttonText: {
+            today: 'Hôm nay',
+            month: 'Tháng',
+            week: 'Tuần',
+            day: 'Ngày',
+            list: 'Danh sách'
+        },
+        locale: 'vi',
+        navLinks: true,
+        editable: false,
+        dayMaxEvents: 4,
+        events: function(info, successCallback, failureCallback) {
+            let url = '{{ route('schedules.calendar-events') }}?start=' + encodeURIComponent(info.startStr) + '&end=' + encodeURIComponent(info.endStr);
+            @if ($memberId)
+                url += '&member_id={{ $memberId }}';
+            @endif
+
+            fetch(url, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(res => res.json())
+            .then(events => successCallback(events))
+            .catch(err => {
+                console.error('Error fetching calendar events:', err);
+                failureCallback(err);
+            });
+        },
+        eventClick: function(info) {
+            info.jsEvent.preventDefault();
+            const props = info.event.extendedProps;
+
+            document.getElementById('calEventMember').innerText = props.member_name || '--';
+            document.getElementById('calEventMedName').innerText = props.medicine_name || '--';
+            document.getElementById('calEventDosage').innerText = props.dosage || '--';
+            document.getElementById('calEventUnit').innerText = props.unit || 'viên';
+            document.getElementById('calEventTime').innerText = (props.time_of_day_label || '') + ' (' + (props.scheduled_time_str || '') + ')';
+            document.getElementById('calEventMeal').innerText = props.meal_timing_label || 'Sau ăn';
+
+            const badge = document.getElementById('calEventStatusBadge');
+            badge.innerText = props.status_label || 'Chưa uống';
+            if (props.status === 'da_uong') {
+                badge.className = 'badge bg-success';
+            } else if (props.status === 'quen_uong' || props.status === 'bo_qua') {
+                badge.className = 'badge bg-danger';
+            } else {
+                badge.className = 'badge bg-warning text-dark';
+            }
+
+            const noteBox = document.getElementById('calEventNoteBox');
+            if (props.note) {
+                document.getElementById('calEventNoteText').innerText = props.note;
+                noteBox.classList.remove('d-none');
+            } else {
+                noteBox.classList.add('d-none');
+            }
+
+            // Bind Mark Taken Button
+            document.getElementById('btnCalMarkTaken').onclick = function() {
+                const calModal = bootstrap.Modal.getInstance(document.getElementById('calendarEventModal'));
+                if (calModal) calModal.hide();
+                quickTakeMed(props.schedule_id, props.scheduled_datetime);
+            };
+
+            // Bind Mark Skip Button
+            document.getElementById('btnCalMarkSkip').onclick = function() {
+                const calModal = bootstrap.Modal.getInstance(document.getElementById('calendarEventModal'));
+                if (calModal) calModal.hide();
+                openSkipMedModal(props.schedule_id, props.medicine_name, props.scheduled_datetime);
+            };
+
+            const modal = new bootstrap.Modal(document.getElementById('calendarEventModal'));
+            modal.show();
+        }
+    });
+
+    calendar.render();
+});
+</script>
+@endif
 @endpush
 @endsection

@@ -87,4 +87,17 @@ class GeminiServiceTest extends TestCase
         $this->assertArrayHasKey('medicines', $result);
         $this->assertNotEmpty($result['medicines']);
     }
+
+    public function test_gemini_service_medical_chat_assistant(): void
+    {
+        $service = new GeminiService();
+
+        $result = $service->askMedicalAssistant('Quên uống 1 liều thuốc huyết áp thì phải làm sao?');
+
+        $this->assertArrayHasKey('answer', $result);
+        $this->assertArrayHasKey('key_points', $result);
+        $this->assertArrayHasKey('safety_warning', $result);
+        $this->assertNotEmpty($result['key_points']);
+    }
 }
+

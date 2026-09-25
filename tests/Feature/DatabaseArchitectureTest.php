@@ -19,7 +19,11 @@ class DatabaseArchitectureTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected bool $seed = true;
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seed();
+    }
 
     public function test_family_and_users_relationship(): void
     {

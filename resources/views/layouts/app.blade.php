@@ -388,6 +388,21 @@
                 </li>
 
                 <li class="main-nav-item">
+                    <a href="{{ route('medicines.index') }}" class="main-nav-link {{ request()->routeIs('medicines.*') ? 'active' : '' }}">
+                        <i class="bi bi-capsule-pill"></i>
+                        <span>Tra cứu thuốc</span>
+                    </a>
+                </li>
+
+                <li class="main-nav-item">
+                    <a href="{{ route('ai-assistant.index') }}" class="main-nav-link {{ request()->routeIs('ai-assistant.*') ? 'active' : '' }}">
+                        <i class="bi bi-robot"></i>
+                        <span>Trợ lý Y tế AI</span>
+                        <span class="badge bg-warning text-dark ms-1" style="font-size: 9px; padding: 1px 4px;">AI</span>
+                    </a>
+                </li>
+
+                <li class="main-nav-item">
                     <a href="{{ route('alerts.index') }}" class="main-nav-link {{ request()->routeIs('alerts.*') ? 'active' : '' }}">
                         <i class="bi bi-shield-exclamation"></i>
                         <span>Cảnh báo an toàn</span>

@@ -449,4 +449,131 @@ class MedicationScheduleController extends Controller
             'end_date.after_or_equal' => 'Ngày kết thúc phải bằng hoặc sau ngày bắt đầu.',
         ]);
     }
+
+    /**
+     * Trả về danh sách sự kiện uống thuốc định dạng JSON cho FullCalendar (Tháng/Tuần/Ngày)
+     */
+    public function calendarEvents(Request $request)
+    {
+        $family = $this->ensureFamily($request);
+
+        $startStr = $request->query('start');
+        $endStr = $request->query('end');
+        $memberId = $request->query('member_id');
+
+        $start = $startStr ? Carbon::parse($startStr)->startOfDay() : Carbon::today()->startOfMonth();
+        $end = $endStr ? Carbon::parse($endStr)->endOfDay() : Carbon::today()->endOfMonth();
+
+        // Giới hạn khoảng ngày tối đa 65 ngày để tối ưu hiệu năng
+        if ($end->diffInDays($start) > 65) {
+            $end = $start->copy()->addDays(65);
+        }
+
+        $schedulesQuery = $family->medicationSchedules()
+            ->with(['familyMember', 'prescriptionItem.treatmentCourse'])
+            ->where('is_active', true)
+            ->where(function ($q) use ($start) {
+                $q->whereNull('end_date')
+                  ->orWhere('end_date', '>=', $start->toDateString());
+            })
+            ->where('start_date', '<=', $end->toDateString());
+
+        if ($memberId) {
+            $schedulesQuery->where('family_member_id', $memberId);
+        }
+
+        $schedules = $schedulesQuery->get();
+
+        // Lấy tất cả nhật ký điểm danh trong khoảng ngày này
+        $logs = MedicationLog::whereHas('schedule', fn ($q) => $q->where('family_id', $family->id))
+            ->whereBetween('scheduled_time', [$start, $end])
+            ->get()
+            ->groupBy(function ($log) {
+                $dt = Carbon::parse($log->scheduled_time)->toDateString();
+                return $log->schedule_id . '_' . $dt;
+            });
+
+        $events = [];
+
+        $colorMap = [
+            'sang' => '#d97706',  // Amber
+            'trua' => '#0284c7',  // Sky blue
+            'chieu' => '#475569', // Slate
+            'toi' => '#2563eb',   // Royal blue
+        ];
+
+        $curr = $start->copy();
+        while ($curr->lte($end)) {
+            $dateString = $curr->toDateString();
+
+            foreach ($schedules as $sch) {
+                $schStart = Carbon::parse($sch->start_date)->startOfDay();
+                $schEnd = $sch->end_date ? Carbon::parse($sch->end_date)->endOfDay() : null;
+
+                if ($curr->lt($schStart)) {
+                    continue;
+                }
+                if ($schEnd && $curr->gt($schEnd)) {
+                    continue;
+                }
+
+                $timePart = $sch->scheduled_time ? Carbon::parse($sch->scheduled_time)->format('H:i:s') : '08:00:00';
+                $eventStart = $dateString . 'T' . $timePart;
+
+                $logKey = $sch->id . '_' . $dateString;
+                $log = $logs->get($logKey)?->first();
+                $status = $log ? $log->status : 'chua_uong';
+
+                $memberName = $sch->familyMember ? $sch->familyMember->name : 'Gia đình';
+                $title = "{$memberName}: {$sch->medicine_name} ({$sch->dosage})";
+
+                if ($status === 'da_uong') {
+                    $title = '✓ ' . $title;
+                    $color = '#16a34a'; // Emerald green
+                } elseif ($status === 'quen_uong' || $status === 'bo_qua') {
+                    $title = '✗ ' . $title;
+                    $color = '#dc2626'; // Red
+                } else {
+                    $color = $colorMap[$sch->time_of_day] ?? '#007bb6';
+                }
+
+                $events[] = [
+                    'id' => $sch->id . '_' . $dateString,
+                    'title' => $title,
+                    'start' => $eventStart,
+                    'allDay' => false,
+                    'backgroundColor' => $color,
+                    'borderColor' => $color,
+                    'textColor' => '#ffffff',
+                    'extendedProps' => [
+                        'schedule_id' => $sch->id,
+                        'medicine_name' => $sch->medicine_name,
+                        'dosage' => $sch->dosage,
+                        'unit' => $sch->unit,
+                        'time_of_day' => $sch->time_of_day,
+                        'time_of_day_label' => $sch->time_of_day_label,
+                        'meal_timing' => $sch->meal_timing,
+                        'meal_timing_label' => $sch->meal_timing_label,
+                        'member_name' => $memberName,
+                        'scheduled_date' => $dateString,
+                        'scheduled_time_str' => Carbon::parse($sch->scheduled_time)->format('H:i'),
+                        'scheduled_datetime' => $dateString . ' ' . $timePart,
+                        'status' => $status,
+                        'status_label' => match($status) {
+                            'da_uong' => 'Đã uống',
+                            'quen_uong' => 'Quên uống',
+                            'bo_qua' => 'Bỏ qua',
+                            default => 'Chưa uống',
+                        },
+                        'note' => $log?->notes,
+                    ],
+                ];
+            }
+
+            $curr->addDay();
+        }
+
+        return response()->json($events);
+    }
 }
+

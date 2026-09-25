@@ -13,7 +13,11 @@ class AuthAndDashboardTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected bool $seed = true;
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seed();
+    }
 
     public function test_guest_is_redirected_to_login_when_visiting_home_or_dashboard(): void
     {

@@ -30,7 +30,7 @@ class SmartAlertSeeder extends Seeder
                 'title' => 'CẢNH BÁO NGUY HIỂM: Thuốc đã quá hạn sử dụng!',
                 'content' => 'Thuốc "Cephalexin 500mg" tại Góc tủ thuốc phòng khách đã hết hạn cách đây 20 ngày. Tuyệt đối không sử dụng và cần tiêu hủy an toàn ngay lập tức!',
                 'is_read' => false,
-                'action_url' => '/cabinet/items',
+                'action_url' => '/cabinet?status=expired',
             ],
             [
                 'family_id' => $family->id,
@@ -40,7 +40,7 @@ class SmartAlertSeeder extends Seeder
                 'title' => 'CẢNH BÁO TƯƠNG TÁC AI: Nguy cơ quá liều Paracetamol!',
                 'content' => 'Hệ thống AI phát hiện tủ thuốc có đồng thời Panadol Extra và Decolgen Forte. Cả hai thuốc đều chứa Paracetamol. Tuyệt đối không cho người bệnh uống đồng thời vì sẽ gây hoại tử tế bào gan cấp tính.',
                 'is_read' => false,
-                'action_url' => '/ai/interaction-checker',
+                'action_url' => '/ai-assistant',
             ],
             [
                 'family_id' => $family->id,
@@ -50,7 +50,7 @@ class SmartAlertSeeder extends Seeder
                 'title' => 'Cảnh báo thuốc cận date (HSD dưới 30 ngày)',
                 'content' => 'Gói thuốc "Acemuc 200mg" chỉ còn 18 ngày hạn sử dụng (hết hạn ngày ' . now()->addDays(18)->format('d/m/Y') . '). Hãy ưu tiên sử dụng trước hoặc có phương án thay thế.',
                 'is_read' => false,
-                'action_url' => '/cabinet/items?filter=near_expiry',
+                'action_url' => '/cabinet?status=near_expiry',
             ],
             [
                 'family_id' => $family->id,
@@ -60,7 +60,7 @@ class SmartAlertSeeder extends Seeder
                 'title' => 'Vật tư y tế sắp hết hàng',
                 'content' => '"Băng cá nhân Urgo Waterproof" trong hộp chỉ còn lại 2 miếng gạc. Hãy lên danh sách mua bổ sung vào lần đi siêu thị tới.',
                 'is_read' => true,
-                'action_url' => '/cabinet/items?filter=low_stock',
+                'action_url' => '/cabinet?status=low_stock',
             ],
             [
                 'family_id' => $family->id,

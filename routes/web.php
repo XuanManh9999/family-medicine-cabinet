@@ -47,6 +47,7 @@ Route::middleware('auth')->group(function () {
 
     // Tủ thuốc gia đình
     Route::get('/cabinet', [CabinetItemController::class, 'index'])->name('cabinet.index');
+    Route::get('/cabinet/items', fn () => redirect()->route('cabinet.index', request()->query()));
     Route::get('/cabinet/export-excel', [CabinetItemController::class, 'exportExcel'])->name('cabinet.export-excel');
     Route::get('/cabinet/sample-excel', [CabinetItemController::class, 'sampleExcel'])->name('cabinet.sample-excel');
     Route::post('/cabinet/import-excel', [CabinetItemController::class, 'importExcel'])->name('cabinet.import-excel');

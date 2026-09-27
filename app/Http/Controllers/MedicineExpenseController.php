@@ -61,31 +61,35 @@ class MedicineExpenseController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        // 1. Thống kê KPI tổng quan
-        $allFamilyExpenses = $family->expenses;
-        $totalAll = $allFamilyExpenses->sum('amount');
-        $totalYear = $family->expenses()->whereYear('purchase_date', $selectedYear)->sum('amount');
-        $currentMonth = Carbon::now()->month;
-        $totalMonth = $family->expenses()->whereYear('purchase_date', $selectedYear)->whereMonth('purchase_date', $currentMonth)->sum('amount');
+        // 1. Thống kê KPI tổng quan & nạp dữ liệu chi phí năm một lần (Tối ưu tránh N+1 Query)
+        $totalAll = (float)$family->expenses()->sum('amount');
+        $yearExpenses = $family->expenses()
+            ->whereYear('purchase_date', $selectedYear)
+            ->get(['amount', 'purchase_date', 'family_member_id']);
+
+        $totalYear = (float)$yearExpenses->sum('amount');
+        $currentMonth = (int)Carbon::now()->month;
+        $totalMonth = (float)$yearExpenses->filter(function ($exp) use ($currentMonth) {
+            return (int)Carbon::parse($exp->purchase_date)->month === $currentMonth;
+        })->sum('amount');
         $avgMonthly = $totalYear > 0 ? round($totalYear / max(1, $currentMonth)) : 0;
 
         // 2. Dữ liệu Biểu đồ Chi phí theo 12 tháng (Monthly Trend Chart)
-        $monthlyData = [];
-        for ($m = 1; $m <= 12; $m++) {
-            $monthlyData[$m] = (float)$family->expenses()
-                ->whereYear('purchase_date', $selectedYear)
-                ->whereMonth('purchase_date', $m)
-                ->sum('amount');
+        $monthlyData = array_fill_keys(range(1, 12), 0.0);
+        foreach ($yearExpenses as $exp) {
+            $m = (int)Carbon::parse($exp->purchase_date)->month;
+            if (isset($monthlyData[$m])) {
+                $monthlyData[$m] += (float)$exp->amount;
+            }
         }
 
         // 3. Dữ liệu Biểu đồ Cơ cấu Chi phí theo Thành viên (Member Distribution Doughnut Chart)
         $memberExpenses = [];
         $members = $family->members()->orderBy('name')->get();
+        $byMember = $yearExpenses->whereNotNull('family_member_id')->groupBy('family_member_id');
+
         foreach ($members as $mem) {
-            $sum = (float)$family->expenses()
-                ->whereYear('purchase_date', $selectedYear)
-                ->where('family_member_id', $mem->id)
-                ->sum('amount');
+            $sum = (float)($byMember->get($mem->id)?->sum('amount') ?? 0);
             if ($sum > 0) {
                 $memberExpenses[] = [
                     'name' => $mem->name,
@@ -95,10 +99,7 @@ class MedicineExpenseController extends Controller
         }
 
         // Chi phí chung tủ thuốc (chưa gắn riêng thành viên nào)
-        $generalSum = (float)$family->expenses()
-            ->whereYear('purchase_date', $selectedYear)
-            ->whereNull('family_member_id')
-            ->sum('amount');
+        $generalSum = (float)$yearExpenses->whereNull('family_member_id')->sum('amount');
         if ($generalSum > 0) {
             $memberExpenses[] = [
                 'name' => 'Chi phí chung (Tủ thuốc gia đình)',

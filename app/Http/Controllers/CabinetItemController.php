@@ -36,7 +36,7 @@ class CabinetItemController extends Controller
             $itemsQuery->whereHas('medicine', fn ($medicine) => $medicine->where('category_id', $categoryId));
         }
 
-        $filter = $request->query('status', 'all');
+        $filter = $request->query('status', $request->query('filter', 'all'));
         match ($filter) {
             'expired' => $itemsQuery->whereDate('expiry_date', '<', today()),
             'near_expiry' => $itemsQuery->whereBetween('expiry_date', [today(), today()->addDays(30)]),
@@ -173,7 +173,7 @@ class CabinetItemController extends Controller
             $itemsQuery->whereHas('medicine', fn ($medicine) => $medicine->where('category_id', $categoryId));
         }
 
-        $filter = $request->query('status', 'all');
+        $filter = $request->query('status', $request->query('filter', 'all'));
         match ($filter) {
             'expired' => $itemsQuery->whereDate('expiry_date', '<', today()),
             'near_expiry' => $itemsQuery->whereBetween('expiry_date', [today(), today()->addDays(30)]),

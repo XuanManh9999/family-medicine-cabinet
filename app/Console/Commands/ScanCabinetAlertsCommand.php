@@ -63,7 +63,7 @@ class ScanCabinetAlertsCommand extends Command
                         'title' => "CẢNH BÁO NGUY HIỂM: Thuốc '{$displayName}' đã quá hạn sử dụng!",
                         'content' => "Thuốc '{$displayName}' tại {$location} đã hết hạn vào ngày {$expiryDate->format('d/m/Y')}. Tuyệt đối không sử dụng và cần tiêu hủy ngay lập tức!",
                         'is_read' => false,
-                        'action_url' => '/cabinet/items',
+                        'action_url' => '/cabinet?status=expired',
                     ]);
                     $expiredCount++;
                 }
@@ -90,7 +90,7 @@ class ScanCabinetAlertsCommand extends Command
                         'title' => "Cảnh báo thuốc cận date: '{$displayName}'",
                         'content' => "Thuốc '{$displayName}' chỉ còn {$daysRemaining} ngày hạn sử dụng (hết hạn ngày {$expiryDate->format('d/m/Y')}). Hãy ưu tiên sử dụng trước hoặc có kế hoạch thay thế.",
                         'is_read' => false,
-                        'action_url' => '/cabinet/items?filter=near_expiry',
+                        'action_url' => '/cabinet?status=near_expiry',
                     ]);
                     $nearExpiryCount++;
                 }
@@ -119,7 +119,7 @@ class ScanCabinetAlertsCommand extends Command
                         'title' => "Vật tư sắp hết: '{$displayName}'",
                         'content' => "Thuốc '{$displayName}' trong tủ chỉ còn {$item->quantity} {$item->unit}. Vui lòng lên danh sách mua bổ sung.",
                         'is_read' => false,
-                        'action_url' => '/cabinet/items?filter=low_stock',
+                        'action_url' => '/cabinet?status=low_stock',
                     ]);
                     $lowStockCount++;
                 }

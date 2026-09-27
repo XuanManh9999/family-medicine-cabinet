@@ -39,7 +39,7 @@ class AlertScannerService
                     'level' => 'danger',
                     'content' => "Thuốc \"{$item->display_name}\" tại {$item->storage_location} đã hết hạn sử dụng vào ngày {$item->expiry_date->format('d/m/Y')}. Tuyệt đối không cho người thân sử dụng và cần loại bỏ khỏi tủ thuốc ngay lập tức!",
                     'is_read' => false,
-                    'action_url' => route('cabinet.index', ['filter' => 'expired']),
+                    'action_url' => route('cabinet.index', ['status' => 'expired']),
                 ]
             );
             if ($alert->wasRecentlyCreated) {
@@ -66,7 +66,7 @@ class AlertScannerService
                     'level' => 'warning',
                     'content' => "Thuốc \"{$item->display_name}\" chỉ còn {$daysLeft} ngày nữa là hết hạn (HSD: {$item->expiry_date->format('d/m/Y')}). Hãy ưu tiên dùng trước nếu có chỉ định hoặc lên kế hoạch thay thế.",
                     'is_read' => false,
-                    'action_url' => route('cabinet.index', ['filter' => 'near_expiry']),
+                    'action_url' => route('cabinet.index', ['status' => 'near_expiry']),
                 ]
             );
             if ($alert->wasRecentlyCreated) {
@@ -98,7 +98,7 @@ class AlertScannerService
                     'level' => 'warning',
                     'content' => $content,
                     'is_read' => false,
-                    'action_url' => route('cabinet.index', ['filter' => 'low_stock']),
+                    'action_url' => route('cabinet.index', ['status' => 'low_stock']),
                 ]
             );
             if ($alert->wasRecentlyCreated) {
@@ -131,7 +131,7 @@ class AlertScannerService
                     'level' => 'danger',
                     'content' => "Hệ thống AI phát hiện tủ thuốc có nhiều chế phẩm cùng chứa Paracetamol ({$names}). Khi hạ sốt/giảm đau, chỉ được dùng duy nhất 1 loại và cách nhau tối thiểu 4-6 giờ để phòng tránh ngộ độc gan cấp tính.",
                     'is_read' => false,
-                    'action_url' => route('cabinet.index'),
+                    'action_url' => route('ai-assistant.index'),
                 ]
             );
             if ($alert->wasRecentlyCreated) {

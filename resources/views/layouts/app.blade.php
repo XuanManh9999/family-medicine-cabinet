@@ -306,6 +306,13 @@
                     </div>
                 </div>
 
+                @if ($authUser->isSystemAdmin())
+                    <a href="{{ route('admin.dashboard') }}" class="btn btn-sm btn-danger py-0 px-2 d-none d-md-inline-flex align-items-center gap-1 shadow-sm" style="font-size: 11.5px; height: 26px;">
+                        <i class="bi bi-shield-lock-fill"></i>
+                        <span>Quản trị Hệ thống</span>
+                    </a>
+                @endif
+
                 <!-- User Dropdown -->
                 <div class="dropdown">
                     <a href="#" class="d-flex align-items-center gap-1 text-decoration-none text-dark" data-bs-toggle="dropdown">
@@ -315,12 +322,24 @@
                             <i class="bi bi-person-circle fs-6 text-primary me-1"></i>
                         @endif
                         <span class="fw-semibold" style="font-size: 12.5px;">{{ $authUser->name }}</span>
-                        <span class="badge {{ $authUser->isFamilyAdmin() ? 'bg-primary-subtle text-primary' : 'bg-secondary-subtle text-secondary' }}" style="font-size: 10px;">
-                            {{ $authUser->isFamilyAdmin() ? 'Chủ hộ' : 'Thành viên' }}
-                        </span>
+                        @if ($authUser->isSystemAdmin())
+                            <span class="badge bg-danger text-white" style="font-size: 10px;">Quản trị viên</span>
+                        @elseif ($authUser->isFamilyAdmin())
+                            <span class="badge bg-primary-subtle text-primary" style="font-size: 10px;">Chủ hộ</span>
+                        @else
+                            <span class="badge bg-secondary-subtle text-secondary" style="font-size: 10px;">Thành viên</span>
+                        @endif
                         <i class="bi bi-chevron-down" style="font-size: 10px;"></i>
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end shadow-sm border py-1" style="font-size: 12.5px;">
+                        @if ($authUser->isSystemAdmin())
+                            <li>
+                                <a class="dropdown-item py-1 fw-bold text-danger" href="{{ route('admin.dashboard') }}">
+                                    <i class="bi bi-shield-lock-fill me-2"></i>Khu vực Quản trị Hệ thống
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider my-1"></li>
+                        @endif
                         <li>
                             <a class="dropdown-item py-1" href="{{ route('profile') }}">
                                 <i class="bi bi-person me-2 text-muted"></i>Hồ sơ cá nhân & Gia đình

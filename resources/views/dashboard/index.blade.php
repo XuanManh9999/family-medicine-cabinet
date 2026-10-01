@@ -61,44 +61,45 @@
                 <span class="badge bg-light text-muted border">F3</span>
             </div>
 
-            <!-- Button Tìm kiếm -->
-            <button type="button" class="btn btn-erp-success w-100 mb-3" onclick="alert('Đang lọc danh mục thuốc...')">
-                <i class="bi bi-search me-1"></i> Tìm kiếm
-            </button>
+            <form method="GET" action="{{ route('cabinet.index') }}">
+                <!-- Button Tìm kiếm -->
+                <button type="submit" class="btn btn-erp-success w-100 mb-3">
+                    <i class="bi bi-search me-1"></i> Tìm trong tủ thuốc
+                </button>
 
-            <!-- Nhập từ khóa -->
-            <div class="mb-3">
-                <label class="form-label">Tên thuốc / Hoạt chất</label>
-                <input type="text" class="form-control form-control-sm" placeholder="Nhập tên thuốc..." id="filterKeyword">
-            </div>
+                <!-- Nhập từ khóa -->
+                <div class="mb-3">
+                    <label class="form-label" for="filterKeyword">Tên thuốc / Hoạt chất</label>
+                    <input type="text" name="q" class="form-control form-control-sm" placeholder="Nhập tên thuốc..." id="filterKeyword">
+                </div>
 
-            <!-- Chọn người dùng -->
-            <div class="mb-3">
-                <label class="form-label">Thành viên điều trị</label>
-                <select class="form-select form-select-sm" id="filterMember">
-                    <option value="">-- Tất cả thành viên --</option>
-                    @foreach ($members as $m)
-                        <option value="{{ $m->id }}">{{ $m->name }} ({{ $m->relationship_text }})</option>
-                    @endforeach
-                </select>
-            </div>
+                <!-- Lọc trạng thái -->
+                <div class="mb-3">
+                    <label class="form-label d-block">Trạng thái hạn dùng & tồn kho</label>
+                    <select name="status" class="form-select form-select-sm">
+                        <option value="all">-- Tất cả trạng thái --</option>
+                        <option value="near_expiry">Thuốc cận hạn (&lt;30 ngày)</option>
+                        <option value="expired">Thuốc đã hết hạn</option>
+                        <option value="low_stock">Tồn kho ít (≤ 5)</option>
+                        <option value="available">Thuốc an toàn còn hạn</option>
+                    </select>
+                </div>
+            </form>
 
-            <!-- Checkbox trạng thái -->
-            <div class="mb-3">
-                <label class="form-label d-block">Trạng thái tủ thuốc</label>
-                <div class="form-check mb-1">
-                    <input class="form-check-input" type="checkbox" id="checkNearExpiry" checked>
-                    <label class="form-check-label" for="checkNearExpiry">Thuốc cận hạn (&lt;30d)</label>
+            <hr class="my-2">
+
+            <!-- Lọc nhanh theo thành viên -->
+            <form method="GET" action="{{ route('schedules.index') }}">
+                <div class="mb-2">
+                    <label class="form-label">Xem lịch theo thành viên</label>
+                    <select name="member_id" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">-- Lịch cả gia đình --</option>
+                        @foreach ($members as $m)
+                            <option value="{{ $m->id }}">{{ $m->name }} ({{ $m->relationship_text }})</option>
+                        @endforeach
+                    </select>
                 </div>
-                <div class="form-check mb-1">
-                    <input class="form-check-input" type="checkbox" id="checkExpired" checked>
-                    <label class="form-check-label text-danger" for="checkExpired">Thuốc đã hết hạn</label>
-                </div>
-                <div class="form-check mb-1">
-                    <input class="form-check-input" type="checkbox" id="checkLowStock">
-                    <label class="form-check-label" for="checkLowStock">Tồn kho ít (≤ 5)</label>
-                </div>
-            </div>
+            </form>
 
             <hr class="my-2">
 

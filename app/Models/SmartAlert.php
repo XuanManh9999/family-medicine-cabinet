@@ -81,6 +81,11 @@ class SmartAlert extends Model
         return $this->content ?? '';
     }
 
+    public function getSeverityAttribute(): string
+    {
+        return $this->level ?? 'info';
+    }
+
     public function getTypeLabelAttribute(): string
     {
         return match ($this->type) {

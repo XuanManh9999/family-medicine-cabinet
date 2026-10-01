@@ -64,10 +64,49 @@
             Đăng ký mới
         </a>
     </div>
+
+    <!-- DEMO ACCOUNTS QUICK FILL -->
+    <div class="mt-3 pt-3 border-top">
+        <div class="small fw-bold text-muted mb-2 d-flex align-items-center gap-1">
+            <i class="bi bi-lightning-charge-fill text-warning"></i>
+            <span>Tài khoản kiểm thử nhanh (1 chạm điền tự động):</span>
+        </div>
+        <div style="display: grid; gap: 6px;">
+            <button type="button" class="btn btn-sm btn-outline-primary text-start d-flex justify-content-between align-items-center py-1.5 px-2"
+                    onclick="fillLogin('an.nguyen@gmail.com', 'password')">
+                <div>
+                    <strong class="d-block text-dark" style="font-size: 12px;">Nguyễn Văn An (Chủ hộ)</strong>
+                    <span class="text-muted" style="font-size: 11px;">an.nguyen@gmail.com</span>
+                </div>
+                <span class="badge bg-primary-subtle text-primary" style="font-size: 10px;">Chủ hộ</span>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary text-start d-flex justify-content-between align-items-center py-1.5 px-2"
+                    onclick="fillLogin('hoa.tran@gmail.com', 'password')">
+                <div>
+                    <strong class="d-block text-dark" style="font-size: 12px;">Trần Thị Hoa (Thành viên)</strong>
+                    <span class="text-muted" style="font-size: 11px;">hoa.tran@gmail.com</span>
+                </div>
+                <span class="badge bg-secondary-subtle text-secondary" style="font-size: 10px;">Thành viên</span>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-danger text-start d-flex justify-content-between align-items-center py-1.5 px-2"
+                    onclick="fillLogin('admin@medcabinet.vn', 'password')">
+                <div>
+                    <strong class="d-block text-dark" style="font-size: 12px;">Quản trị viên Trung tâm</strong>
+                    <span class="text-muted" style="font-size: 11px;">admin@medcabinet.vn</span>
+                </div>
+                <span class="badge bg-danger text-white" style="font-size: 10px;">Super Admin</span>
+            </button>
+        </div>
+    </div>
 </form>
 
 @push('scripts')
 <script>
+    function fillLogin(email, pass) {
+        document.getElementById('email').value = email;
+        document.getElementById('password').value = pass;
+    }
+
     const togglePassword = document.getElementById('togglePassword');
     const passwordInput = document.getElementById('password');
     if (togglePassword) {

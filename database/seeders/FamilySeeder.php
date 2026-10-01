@@ -25,6 +25,18 @@ class FamilySeeder extends Seeder
         );
 
         // 2. Tạo Tài khoản Người dùng
+        // 2.1. Quản trị viên Toàn hệ thống (Super Admin)
+        User::updateOrCreate(
+            ['email' => 'admin@medcabinet.vn'],
+            [
+                'family_id' => $family->id,
+                'name' => 'Quản trị viên Trung tâm',
+                'phone' => '0901234567',
+                'role' => 'system_admin',
+                'password' => Hash::make('password'),
+            ]
+        );
+
         $adminUser = User::updateOrCreate(
             ['email' => 'an.nguyen@gmail.com'],
             [

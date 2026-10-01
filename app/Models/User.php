@@ -66,6 +66,11 @@ class User extends Authenticatable
         return $this->hasMany(SmartAlert::class);
     }
 
+    public function isSystemAdmin(): bool
+    {
+        return $this->role === 'system_admin';
+    }
+
     public function isFamilyAdmin(): bool
     {
         return $this->role === 'family_admin';

@@ -42,6 +42,13 @@ class UserFactory extends Factory
         ]);
     }
 
+    public function systemAdmin(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => 'system_admin',
+        ]);
+    }
+
     /**
      * Indicate that the model's email address should be unverified.
      */

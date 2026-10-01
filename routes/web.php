@@ -17,6 +17,9 @@ Route::get('/', function () {
     return auth()->check() ? redirect()->route('dashboard') : redirect()->route('login');
 });
 
+// Trang giới thiệu & Giới thiệu Nền tảng
+Route::get('/landing', fn () => view('welcome'))->name('landing');
+
 // Nhóm Routes cho Khách (Chưa đăng nhập)
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
@@ -92,4 +95,17 @@ Route::middleware('auth')->group(function () {
     Route::patch('/alerts/{alert}/read', [SmartAlertController::class, 'markAsRead'])->name('alerts.read');
     Route::delete('/alerts/{alert}', [SmartAlertController::class, 'destroy'])->name('alerts.destroy');
     Route::get('/alerts', [SmartAlertController::class, 'index'])->name('alerts.index');
+});
+
+// Nhóm Routes Dành riêng cho Quản trị viên Hệ thống (System Admin)
+Route::middleware(['auth', 'system_admin'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'index'])->name('dashboard');
+    Route::post('/scan-alerts', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'scanAlerts'])->name('scan-alerts');
+    Route::resource('medicines', \App\Http\Controllers\Admin\AdminMedicineController::class);
+    Route::resource('categories', \App\Http\Controllers\Admin\AdminCategoryController::class)->except(['create', 'show', 'edit']);
+    Route::get('/families', [\App\Http\Controllers\Admin\AdminFamilyController::class, 'index'])->name('families.index');
+    Route::get('/families/{family}', [\App\Http\Controllers\Admin\AdminFamilyController::class, 'show'])->name('families.show');
+    Route::get('/users', [\App\Http\Controllers\Admin\AdminUserController::class, 'index'])->name('users.index');
+    Route::patch('/users/{user}/role', [\App\Http\Controllers\Admin\AdminUserController::class, 'updateRole'])->name('users.role');
+    Route::patch('/users/{user}/reset-password', [\App\Http\Controllers\Admin\AdminUserController::class, 'resetPassword'])->name('users.reset-password');
 });

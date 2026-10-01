@@ -551,6 +551,19 @@
         const msgDiv = document.createElement('div');
         msgDiv.className = 'd-flex gap-2 mb-3';
 
+        let cabinetMatchHtml = '';
+        if (resp.cabinet_match && resp.cabinet_match.trim() !== '') {
+            cabinetMatchHtml = `
+                <div class="mt-2 p-2 bg-info-subtle text-info-emphasis rounded border border-info-subtle small d-flex align-items-center gap-2">
+                    <i class="bi bi-box-seam-fill text-info fs-6"></i>
+                    <div>
+                        <strong class="d-block" style="font-size: 11.5px;">Đối chiếu Tủ thuốc Nhà bạn:</strong>
+                        <span>${escapeHtml(resp.cabinet_match)}</span>
+                    </div>
+                </div>
+            `;
+        }
+
         let keyPointsHtml = '';
         if (resp.key_points && resp.key_points.length > 0) {
             keyPointsHtml = '<div class="mt-2 p-2 bg-light rounded border"><div class="fw-bold text-secondary small mb-1"><i class="bi bi-bookmark-star-fill text-warning me-1"></i>Lưu ý cốt lõi:</div><ul class="mb-0 ps-3 small">';
@@ -560,11 +573,20 @@
             keyPointsHtml += '</ul></div>';
         }
 
+        let actionsHtml = '';
+        if (resp.suggested_actions && resp.suggested_actions.length > 0) {
+            actionsHtml = '<div class="mt-2 p-2 bg-success-subtle text-success-emphasis rounded border border-success-subtle"><div class="fw-bold small mb-1"><i class="bi bi-check2-circle text-success me-1"></i>Hành động khuyến nghị:</div><ul class="mb-0 ps-3 small">';
+            resp.suggested_actions.forEach(act => {
+                actionsHtml += `<li>${escapeHtml(act)}</li>`;
+            });
+            actionsHtml += '</ul></div>';
+        }
+
         let warningHtml = '';
         if (resp.safety_warning) {
             warningHtml = `
                 <div class="mt-2 p-2 bg-danger-subtle text-danger rounded border border-danger-subtle small">
-                    <i class="bi bi-shield-exclamation me-1"></i><strong>Cảnh báo:</strong> ${escapeHtml(resp.safety_warning)}
+                    <i class="bi bi-shield-exclamation me-1"></i><strong>Cảnh báo an toàn:</strong> ${escapeHtml(resp.safety_warning)}
                 </div>
             `;
         }
@@ -579,7 +601,9 @@
                     <span class="text-muted" style="font-size: 10px;">${time || ''}</span>
                 </div>
                 <div class="text-dark small" style="line-height: 1.6; white-space: pre-line;">${escapeHtml(resp.answer || '')}</div>
+                ${cabinetMatchHtml}
                 ${keyPointsHtml}
+                ${actionsHtml}
                 ${warningHtml}
             </div>
         `;

@@ -88,7 +88,13 @@ class MedicineController extends Controller
             ]);
         }
 
-        return view('medicines.show', compact('medicine'));
+        $family = $this->ensureFamily(request());
+        $cabinetItems = $family->cabinetItems()
+            ->where('medicine_id', $medicine->id)
+            ->orderBy('expiry_date')
+            ->get();
+
+        return view('medicines.show', compact('medicine', 'cabinetItems'));
     }
 
     /**
@@ -113,18 +119,21 @@ class MedicineController extends Controller
             'expiry_date.after_or_equal' => 'Hạn sử dụng không thể là ngày trong quá khứ.',
         ]);
 
+        $isNearExpiry = Carbon::parse($validated['expiry_date'])->lte(today()->addDays(30));
+        $status = $isNearExpiry ? 'sap_het_han' : 'con_han';
+
         $item = CabinetItem::create([
             'family_id' => $family->id,
             'medicine_id' => $medicine->id,
             'custom_name' => $medicine->name,
             'batch_number' => $validated['batch_number'] ?? null,
-            'manufacture_date' => $validated['manufacture_date'] ?? null,
+            'manufacturing_date' => $validated['manufacture_date'] ?? ($request->input('manufacturing_date') ?? null),
             'expiry_date' => $validated['expiry_date'],
             'quantity' => $validated['quantity'],
             'unit' => $validated['unit'] ?: ($medicine->default_unit ?? 'viên'),
             'storage_location' => $validated['storage_location'] ?? 'Ngăn chính',
             'price_per_unit' => $validated['price_per_unit'] ?? 0,
-            'status' => 'con_han',
+            'status' => $status,
             'notes' => 'Thêm từ danh mục chuẩn: ' . $medicine->name,
         ]);
 

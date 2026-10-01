@@ -115,6 +115,17 @@ class MedicineMasterDataTest extends TestCase
         ]);
     }
 
+    public function test_user_can_view_medicine_detail_html_page(): void
+    {
+        $response = $this->actingAs($this->user)
+            ->get(route('medicines.show', $this->medicine));
+
+        $response->assertStatus(200);
+        $response->assertSee('Panadol Extra');
+        $response->assertSee('Thông tin Hoạt chất và Bào chế');
+        $response->assertSee('Tồn kho trong tủ gia đình');
+    }
+
     public function test_user_can_quick_add_medicine_to_cabinet(): void
     {
         $response = $this->actingAs($this->user)->post(route('medicines.add-to-cabinet', $this->medicine), [

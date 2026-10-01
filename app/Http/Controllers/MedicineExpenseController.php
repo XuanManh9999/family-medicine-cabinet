@@ -72,7 +72,8 @@ class MedicineExpenseController extends Controller
         $totalMonth = (float)$yearExpenses->filter(function ($exp) use ($currentMonth) {
             return (int)Carbon::parse($exp->purchase_date)->month === $currentMonth;
         })->sum('amount');
-        $avgMonthly = $totalYear > 0 ? round($totalYear / max(1, $currentMonth)) : 0;
+        $monthsCount = ($selectedYear === (int)Carbon::now()->year) ? max(1, $currentMonth) : 12;
+        $avgMonthly = $totalYear > 0 ? round($totalYear / $monthsCount) : 0;
 
         // 2. Dữ liệu Biểu đồ Chi phí theo 12 tháng (Monthly Trend Chart)
         $monthlyData = array_fill_keys(range(1, 12), 0.0);

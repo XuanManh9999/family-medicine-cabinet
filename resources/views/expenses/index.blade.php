@@ -9,6 +9,15 @@
         <h5 class="fw-bold mb-1 text-dark d-flex align-items-center gap-2">
             <i class="bi bi-cash-stack text-success fs-4"></i>
             Thống kê Chi phí thuốc & Viện phí gia đình
+            @if (!auth()->user()->canDeleteExpenses())
+                <span class="badge bg-secondary-subtle text-secondary border fw-normal" style="font-size: 11.5px;">
+                    <i class="bi bi-wallet2 me-1"></i>Sổ ghi chép chi tiêu
+                </span>
+            @else
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-normal" style="font-size: 11.5px;">
+                    <i class="bi bi-shield-check me-1"></i>Quản lý tài chính hộ
+                </span>
+            @endif
         </h5>
         <div class="text-muted small">
             Theo dõi chi tiêu mua thuốc, viện phí khám chữa bệnh, phân tích xu hướng chi tiêu y tế và cơ cấu ngân sách gia đình.
@@ -275,9 +284,11 @@
                                 <a href="{{ route('expenses.edit', $exp) }}" class="btn btn-sm btn-light border p-1" title="Chỉnh sửa">
                                     <i class="bi bi-pencil text-warning"></i>
                                 </a>
-                                <button type="button" class="btn btn-sm btn-light border p-1" title="Xóa" onclick="confirmDeleteExpense('{{ $exp->id }}', '{{ addslashes($exp->title) }}', '{{ number_format($exp->amount, 0, ',', '.') }}')">
-                                    <i class="bi bi-trash text-danger"></i>
-                                </button>
+                                @if (auth()->user()->canDeleteExpenses())
+                                    <button type="button" class="btn btn-sm btn-light border p-1" title="Xóa" onclick="confirmDeleteExpense('{{ $exp->id }}', '{{ addslashes($exp->title) }}', '{{ number_format($exp->amount, 0, ',', '.') }}')">
+                                        <i class="bi bi-trash text-danger"></i>
+                                    </button>
+                                @endif
                             </div>
                         </td>
                     </tr>

@@ -8,17 +8,28 @@
         <h5 class="fw-bold mb-1 text-dark d-flex align-items-center gap-2">
             <i class="bi bi-journal-medical text-primary fs-4"></i>
             Đơn thuốc & Đợt điều trị ngoại trú
+            @if (!auth()->user()->canManageTreatments())
+                <span class="badge bg-secondary-subtle text-secondary border fw-normal" style="font-size: 11.5px;">
+                    <i class="bi bi-eye me-1"></i>Chế độ xem
+                </span>
+            @else
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-normal" style="font-size: 11.5px;">
+                    <i class="bi bi-file-earmark-medical-fill me-1"></i>Quyền kê đơn & phác đồ
+                </span>
+            @endif
         </h5>
         <div class="text-muted small">
             Quản lý toa thuốc bác sĩ, theo dõi phác đồ điều trị, thẩm định an toàn tương tác thuốc và tự động sinh lịch uống.
         </div>
     </div>
-    <div class="d-flex align-items-center gap-2">
-        <a href="{{ route('treatment-courses.create') }}" class="btn btn-erp-primary d-inline-flex align-items-center gap-1 shadow-sm">
-            <i class="bi bi-plus-circle"></i>
-            <span>Thêm đợt điều trị / Kê đơn mới</span>
-        </a>
-    </div>
+    @if (auth()->user()->canManageTreatments())
+        <div class="d-flex align-items-center gap-2">
+            <a href="{{ route('treatment-courses.create') }}" class="btn btn-erp-primary d-inline-flex align-items-center gap-1 shadow-sm">
+                <i class="bi bi-plus-circle"></i>
+                <span>Thêm đợt điều trị / Kê đơn mới</span>
+            </a>
+        </div>
+    @endif
 </div>
 
 <!-- KPI SUMMARY CARDS -->
@@ -288,27 +299,31 @@
                                             <i class="bi bi-eye text-primary me-2"></i>Xem chi tiết đơn
                                         </a>
                                     </li>
-                                    <li>
-                                        <a class="dropdown-item py-1" href="{{ route('treatment-courses.edit', $course) }}">
-                                            <i class="bi bi-pencil text-warning me-2"></i>Chỉnh sửa đơn
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <form method="POST" action="{{ route('treatment-courses.toggle-status', $course) }}">
-                                            @csrf
-                                            @method('PATCH')
-                                            <button type="submit" class="dropdown-item py-1 text-dark">
-                                                <i class="bi bi-arrow-repeat text-info me-2"></i>
-                                                {{ $course->status === 'dang_dieu_tri' ? 'Đánh dấu Hoàn thành' : 'Kích hoạt lại' }}
+                                    @if (auth()->user()->canManageTreatments())
+                                        <li>
+                                            <a class="dropdown-item py-1" href="{{ route('treatment-courses.edit', $course) }}">
+                                                <i class="bi bi-pencil text-warning me-2"></i>Chỉnh sửa đơn
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <form method="POST" action="{{ route('treatment-courses.toggle-status', $course) }}">
+                                                @csrf
+                                                @method('PATCH')
+                                                <button type="submit" class="dropdown-item py-1 text-dark">
+                                                    <i class="bi bi-arrow-repeat text-info me-2"></i>
+                                                    {{ $course->status === 'dang_dieu_tri' ? 'Đánh dấu Hoàn thành' : 'Kích hoạt lại' }}
+                                                </button>
+                                            </form>
+                                        </li>
+                                    @endif
+                                    @if (auth()->user()->canDeleteTreatments())
+                                        <li><hr class="dropdown-divider my-1"></li>
+                                        <li>
+                                            <button type="button" class="dropdown-item py-1 text-danger" onclick="confirmDeleteCourse('{{ $course->id }}', '{{ addslashes($course->title) }}')">
+                                                <i class="bi bi-trash me-2"></i>Xóa đợt điều trị
                                             </button>
-                                        </form>
-                                    </li>
-                                    <li><hr class="dropdown-divider my-1"></li>
-                                    <li>
-                                        <button type="button" class="dropdown-item py-1 text-danger" onclick="confirmDeleteCourse('{{ $course->id }}', '{{ addslashes($course->title) }}')">
-                                            <i class="bi bi-trash me-2"></i>Xóa đợt điều trị
-                                        </button>
-                                    </li>
+                                        </li>
+                                    @endif
                                 </ul>
                             </div>
                         </td>
@@ -319,9 +334,11 @@
                             <i class="bi bi-journal-x fs-1 text-secondary opacity-50 d-block mb-2"></i>
                             <div class="fw-semibold fs-6">Chưa có đợt điều trị hoặc đơn thuốc nào</div>
                             <div class="small mb-3">Lưu trữ đơn thuốc bác sĩ giúp bạn theo dõi lịch uống và tránh ngộ độc tương tác thuốc.</div>
-                            <a href="{{ route('treatment-courses.create') }}" class="btn btn-sm btn-erp-primary">
-                                <i class="bi bi-plus-circle me-1"></i>Thêm đơn thuốc đầu tiên
-                            </a>
+                            @if (auth()->user()->canManageTreatments())
+                                <a href="{{ route('treatment-courses.create') }}" class="btn btn-sm btn-erp-primary">
+                                    <i class="bi bi-plus-circle me-1"></i>Thêm đơn thuốc đầu tiên
+                                </a>
+                            @endif
                         </td>
                     </tr>
                 @endforelse

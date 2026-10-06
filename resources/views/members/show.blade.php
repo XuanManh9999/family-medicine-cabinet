@@ -23,9 +23,9 @@
             <i class="bi bi-printer me-1"></i> In hồ sơ bệnh án
         </button>
 
-        @if (auth()->user()->isFamilyAdmin())
+        @if (auth()->user()->canEditMember($member))
             <a href="{{ route('members.edit', $member) }}" class="btn btn-outline-primary btn-sm">
-                <i class="bi bi-pencil me-1"></i> Sửa thông tin sức khỏe
+                <i class="bi bi-pencil me-1"></i> {{ auth()->user()->canManageMembers() ? 'Sửa thông tin sức khỏe' : 'Cập nhật hồ sơ của tôi' }}
             </a>
         @endif
     </div>

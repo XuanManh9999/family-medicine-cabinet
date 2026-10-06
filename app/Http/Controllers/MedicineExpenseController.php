@@ -241,6 +241,7 @@ class MedicineExpenseController extends Controller
     public function destroy(Request $request, MedicineExpense $expense)
     {
         $this->authorizeExpense($request, $expense);
+        abort_unless($request->user()->canDeleteExpenses(), 403, 'Chỉ Chủ hộ hoặc Quản trị viên hệ thống mới có quyền xóa khoản chi phí y tế gia đình.');
 
         if ($expense->receipt_image_path) {
             Storage::disk('public')->delete($expense->receipt_image_path);

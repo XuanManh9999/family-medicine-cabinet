@@ -8,6 +8,15 @@
     <div>
         <h1 class="h4 mb-1 fw-bold text-dark d-flex align-items-center gap-2">
             <i class="bi bi-people-fill text-primary"></i> Hồ sơ Sức khỏe Thành viên Gia đình
+            @if (!auth()->user()->canManageMembers())
+                <span class="badge bg-secondary-subtle text-secondary border fw-normal" style="font-size: 11.5px;">
+                    <i class="bi bi-eye me-1"></i>Chế độ xem
+                </span>
+            @else
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-normal" style="font-size: 11.5px;">
+                    <i class="bi bi-shield-check me-1"></i>Quản trị sổ hộ gia đình
+                </span>
+            @endif
         </h1>
         <div class="text-muted small">
             Quản lý hồ sơ bệnh án điện tử, theo dõi tiền sử dị ứng thuốc và bệnh nền mạn tính của từng người thân.
@@ -18,7 +27,7 @@
             <i class="bi bi-printer me-1"></i> In tóm tắt y tế
         </button>
 
-        @if (auth()->user()->isFamilyAdmin())
+        @if (auth()->user()->canManageMembers())
             <a href="{{ route('members.create') }}" class="btn btn-erp-primary btn-sm">
                 <i class="bi bi-person-plus-fill me-1"></i> Thêm thành viên mới
             </a>
@@ -247,19 +256,25 @@
                         <i class="bi bi-file-earmark-medical me-1"></i>Xem hồ sơ bệnh án
                     </a>
 
-                    @if (auth()->user()->isFamilyAdmin())
-                        <div class="d-flex gap-1">
-                            <a href="{{ route('members.edit', $m) }}" class="btn btn-sm btn-outline-secondary py-1 px-2" title="Chỉnh sửa hồ sơ" style="font-size: 12px;">
+                    <div class="d-flex gap-1">
+                        @if (auth()->user()->canEditMember($m))
+                            <a href="{{ route('members.edit', $m) }}" class="btn btn-sm btn-outline-secondary py-1 px-2 d-inline-flex align-items-center gap-1" title="Chỉnh sửa hồ sơ" style="font-size: 12px;">
                                 <i class="bi bi-pencil"></i>
+                                @if (!auth()->user()->canManageMembers() && (int)$m->user_id === (int)auth()->id())
+                                    <span class="d-none d-sm-inline">Sửa hồ sơ của tôi</span>
+                                @endif
                             </a>
+                        @endif
+
+                        @if (auth()->user()->canManageMembers())
                             <button type="button" class="btn btn-sm btn-outline-danger py-1 px-2 btn-delete-member" title="Xóa thành viên" style="font-size: 12px;"
                                     data-action="{{ route('members.destroy', $m) }}"
                                     data-name="{{ $m->name }}"
                                     data-rel="{{ $m->relationship_label }}">
                                 <i class="bi bi-trash"></i>
                             </button>
-                        </div>
-                    @endif
+                        @endif
+                    </div>
                 </div>
             </div>
         </div>
@@ -269,7 +284,7 @@
                 <i class="bi bi-people fs-1 text-muted d-block mb-2"></i>
                 <h5 class="fw-semibold">Không tìm thấy thành viên phù hợp</h5>
                 <p class="text-muted small">Hãy thử tìm kiếm với từ khóa khác hoặc thêm thành viên mới vào gia đình.</p>
-                @if (auth()->user()->isFamilyAdmin())
+                @if (auth()->user()->canManageMembers())
                     <a href="{{ route('members.create') }}" class="btn btn-erp-primary btn-sm mt-2">
                         <i class="bi bi-person-plus-fill me-1"></i>Thêm thành viên ngay
                     </a>

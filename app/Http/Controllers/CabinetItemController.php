@@ -93,7 +93,7 @@ class CabinetItemController extends Controller
 
     public function create(Request $request)
     {
-        $this->ensureFamily($request);
+        $this->ensureAdmin($request);
         return view('cabinet.form', ['item' => new CabinetItem(), 'medicines' => Medicine::orderBy('name')->get(), 'editing' => false]);
     }
 
@@ -105,11 +105,12 @@ class CabinetItemController extends Controller
         $data['status'] = $this->statusFor($data['expiry_date'], $data['quantity']);
         CabinetItem::create($data);
 
-        return redirect()->route('cabinet.index')->with('success', 'Đã thêm thuốc vào tủ.');
+        return redirect()->route('cabinet.index')->with('success', 'Đã thêm thuốc vào tủ thuốc gia đình.');
     }
 
     public function edit(Request $request, CabinetItem $cabinetItem)
     {
+        $this->ensureAdmin($request);
         $this->authorizeItem($request, $cabinetItem);
         return view('cabinet.form', ['item' => $cabinetItem, 'medicines' => Medicine::orderBy('name')->get(), 'editing' => true]);
     }
@@ -542,7 +543,7 @@ class CabinetItemController extends Controller
     private function ensureAdmin(Request $request)
     {
         $family = $this->ensureFamily($request);
-        abort_unless($request->user()->isFamilyAdmin(), 403, 'Chỉ chủ hộ mới có thể thay đổi tủ thuốc.');
+        abort_unless($request->user()->canManageCabinet(), 403, 'Chỉ Chủ hộ hoặc Quản trị viên hệ thống mới có quyền thay đổi tủ thuốc gia đình.');
         return $family;
     }
 

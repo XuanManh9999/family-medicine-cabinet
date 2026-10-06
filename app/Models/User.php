@@ -81,6 +81,113 @@ class User extends Authenticatable
         return $this->role === 'doctor_caregiver';
     }
 
+    public function isMember(): bool
+    {
+        return $this->role === 'member';
+    }
+
+    /**
+     * Quyền quản lý Tủ thuốc (Thêm, sửa, xóa, nhập Excel)
+     */
+    public function canManageCabinet(): bool
+    {
+        return $this->isFamilyAdmin() || $this->isSystemAdmin();
+    }
+
+    /**
+     * Quyền quản lý Sổ thành viên gia đình (Thêm, xóa thành viên)
+     */
+    public function canManageMembers(): bool
+    {
+        return $this->isFamilyAdmin() || $this->isSystemAdmin();
+    }
+
+    /**
+     * Quyền chỉnh sửa hồ sơ sức khỏe một thành viên
+     * - Chủ hộ hoặc Super Admin: sửa được mọi hồ sơ
+     * - Thành viên thường: chỉ sửa được hồ sơ của chính mình
+     */
+    public function canEditMember(?FamilyMember $member): bool
+    {
+        if ($this->canManageMembers()) {
+            return true;
+        }
+
+        if (!$member) {
+            return false;
+        }
+
+        return (int) $member->user_id === (int) $this->id;
+    }
+
+    /**
+     * Quyền kê đơn / lập phác đồ điều trị
+     */
+    public function canManageTreatments(): bool
+    {
+        return $this->isFamilyAdmin() || $this->isDoctorOrCaregiver() || $this->isSystemAdmin();
+    }
+
+    /**
+     * Quyền xóa đợt điều trị
+     */
+    public function canDeleteTreatments(): bool
+    {
+        return $this->isFamilyAdmin() || $this->isSystemAdmin();
+    }
+
+    /**
+     * Quyền cấu hình và tạo lịch uống thuốc
+     */
+    public function canManageSchedules(): bool
+    {
+        return $this->isFamilyAdmin() || $this->isDoctorOrCaregiver() || $this->isSystemAdmin();
+    }
+
+    /**
+     * Quyền xóa khoản chi phí y tế
+     */
+    public function canDeleteExpenses(): bool
+    {
+        return $this->isFamilyAdmin() || $this->isSystemAdmin();
+    }
+
+    /**
+     * Quyền xóa cảnh báo an toàn
+     */
+    public function canDeleteAlerts(): bool
+    {
+        return $this->isFamilyAdmin() || $this->isSystemAdmin();
+    }
+
+    /**
+     * Nhãn vai trò tiếng Việt hiển thị trên giao diện
+     */
+    public function getRoleNameAttribute(): string
+    {
+        return match ($this->role) {
+            'system_admin' => 'Quản trị viên Hệ thống',
+            'family_admin' => 'Chủ hộ (Admin Gia đình)',
+            'doctor_caregiver' => 'Bác sĩ / Chăm sóc y tế',
+            'member' => 'Thành viên gia đình',
+            default => 'Thành viên gia đình',
+        };
+    }
+
+    /**
+     * CSS Badge class cho vai trò
+     */
+    public function getRoleBadgeClassAttribute(): string
+    {
+        return match ($this->role) {
+            'system_admin' => 'bg-danger text-white',
+            'family_admin' => 'bg-primary text-white',
+            'doctor_caregiver' => 'bg-success text-white',
+            'member' => 'bg-secondary-subtle text-secondary border border-secondary-subtle',
+            default => 'bg-secondary-subtle text-secondary',
+        };
+    }
+
     /**
      * Lấy URL hiển thị của ảnh đại diện (Hỗ trợ cả Base64 và file Storage)
      */
@@ -97,3 +204,4 @@ class User extends Authenticatable
         return asset('storage/' . $this->avatar);
     }
 }
+

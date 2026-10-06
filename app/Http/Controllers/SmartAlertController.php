@@ -126,6 +126,7 @@ class SmartAlertController extends Controller
     public function destroy(Request $request, SmartAlert $alert)
     {
         $this->authorizeAlert($request, $alert);
+        abort_unless($request->user()->canDeleteAlerts(), 403, 'Chỉ Chủ hộ hoặc Quản trị viên hệ thống mới có quyền xóa cảnh báo an toàn.');
 
         $alert->delete();
 

@@ -263,6 +263,8 @@ class MedicationScheduleController extends Controller
     public function create(Request $request)
     {
         $family = $this->ensureFamily($request);
+        abort_unless($request->user()->canManageSchedules(), 403, 'Chỉ Chủ hộ, Bác sĩ/Người chăm sóc hoặc Quản trị viên mới có quyền thiết lập lịch uống thuốc.');
+
         $members = $family->members()->orderBy('name')->get();
 
         if ($members->isEmpty()) {
@@ -300,6 +302,7 @@ class MedicationScheduleController extends Controller
     public function store(Request $request)
     {
         $family = $this->ensureFamily($request);
+        abort_unless($request->user()->canManageSchedules(), 403, 'Chỉ Chủ hộ, Bác sĩ/Người chăm sóc hoặc Quản trị viên mới có quyền thiết lập lịch uống thuốc.');
 
         $validated = $this->validateSchedule($request, $family->id);
         $timeStr = strlen($validated['scheduled_time']) === 5 ? $validated['scheduled_time'] . ':00' : $validated['scheduled_time'];
@@ -328,6 +331,7 @@ class MedicationScheduleController extends Controller
     public function edit(Request $request, MedicationSchedule $schedule)
     {
         $this->authorizeSchedule($request, $schedule);
+        abort_unless($request->user()->canManageSchedules(), 403, 'Chỉ Chủ hộ, Bác sĩ/Người chăm sóc hoặc Quản trị viên mới có quyền chỉnh sửa lịch uống thuốc.');
 
         $family = $request->user()->family;
         $members = $family->members()->orderBy('name')->get();
@@ -350,6 +354,8 @@ class MedicationScheduleController extends Controller
     public function update(Request $request, MedicationSchedule $schedule)
     {
         $this->authorizeSchedule($request, $schedule);
+        abort_unless($request->user()->canManageSchedules(), 403, 'Chỉ Chủ hộ, Bác sĩ/Người chăm sóc hoặc Quản trị viên mới có quyền cập nhật lịch uống thuốc.');
+
         $family = $request->user()->family;
 
         $validated = $this->validateSchedule($request, $family->id);
@@ -378,6 +384,7 @@ class MedicationScheduleController extends Controller
     public function toggle(Request $request, MedicationSchedule $schedule)
     {
         $this->authorizeSchedule($request, $schedule);
+        abort_unless($request->user()->canManageSchedules(), 403, 'Chỉ Chủ hộ, Bác sĩ/Người chăm sóc hoặc Quản trị viên mới có quyền thay đổi trạng thái lịch uống.');
 
         $schedule->update([
             'is_active' => !$schedule->is_active,
@@ -393,6 +400,7 @@ class MedicationScheduleController extends Controller
     public function destroy(Request $request, MedicationSchedule $schedule)
     {
         $this->authorizeSchedule($request, $schedule);
+        abort_unless($request->user()->canManageSchedules(), 403, 'Chỉ Chủ hộ hoặc Quản trị viên hệ thống mới có quyền xóa lịch uống thuốc.');
 
         $schedule->logs()->delete();
         $schedule->delete();

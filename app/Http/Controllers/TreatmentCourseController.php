@@ -92,6 +92,8 @@ class TreatmentCourseController extends Controller
     public function create(Request $request)
     {
         $family = $this->ensureFamily($request);
+        abort_unless($request->user()->canManageTreatments(), 403, 'Chỉ Chủ hộ, Bác sĩ/Người chăm sóc hoặc Quản trị viên mới có quyền lập đợt điều trị & kê đơn thuốc.');
+
         $members = $family->members()->orderBy('name')->get();
 
         if ($members->isEmpty()) {
@@ -125,6 +127,7 @@ class TreatmentCourseController extends Controller
     public function store(Request $request)
     {
         $family = $this->ensureFamily($request);
+        abort_unless($request->user()->canManageTreatments(), 403, 'Chỉ Chủ hộ, Bác sĩ/Người chăm sóc hoặc Quản trị viên mới có quyền lập đợt điều trị & kê đơn thuốc.');
 
         $validated = $this->validateTreatmentCourse($request, $family->id);
 
@@ -276,6 +279,7 @@ class TreatmentCourseController extends Controller
     public function edit(Request $request, TreatmentCourse $treatmentCourse)
     {
         $this->authorizeCourse($request, $treatmentCourse);
+        abort_unless($request->user()->canManageTreatments(), 403, 'Chỉ Chủ hộ, Bác sĩ/Người chăm sóc hoặc Quản trị viên mới có quyền chỉnh sửa đợt điều trị.');
 
         $family = $request->user()->family;
         $members = $family->members()->orderBy('name')->get();
@@ -300,6 +304,8 @@ class TreatmentCourseController extends Controller
     public function update(Request $request, TreatmentCourse $treatmentCourse)
     {
         $this->authorizeCourse($request, $treatmentCourse);
+        abort_unless($request->user()->canManageTreatments(), 403, 'Chỉ Chủ hộ, Bác sĩ/Người chăm sóc hoặc Quản trị viên mới có quyền cập nhật đợt điều trị.');
+
         $family = $request->user()->family;
 
         $validated = $this->validateTreatmentCourse($request, $family->id);
@@ -432,6 +438,7 @@ class TreatmentCourseController extends Controller
     public function toggleStatus(Request $request, TreatmentCourse $treatmentCourse)
     {
         $this->authorizeCourse($request, $treatmentCourse);
+        abort_unless($request->user()->canManageTreatments(), 403, 'Chỉ Chủ hộ hoặc Bác sĩ/Người chăm sóc mới có quyền thay đổi trạng thái đợt điều trị.');
 
         $newStatus = ($treatmentCourse->status === 'dang_dieu_tri') ? 'da_hoan_thanh' : 'dang_dieu_tri';
         $isActive = ($newStatus === 'dang_dieu_tri');
@@ -454,6 +461,7 @@ class TreatmentCourseController extends Controller
     public function destroy(Request $request, TreatmentCourse $treatmentCourse)
     {
         $this->authorizeCourse($request, $treatmentCourse);
+        abort_unless($request->user()->canDeleteTreatments(), 403, 'Chỉ Chủ hộ hoặc Quản trị viên hệ thống mới có quyền xóa đợt điều trị.');
 
         DB::transaction(function () use ($treatmentCourse) {
             if ($treatmentCourse->prescription_image_path) {

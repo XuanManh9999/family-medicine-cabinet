@@ -245,6 +245,22 @@
         $globalUnreadAlerts = $authFamily ? $authFamily->smartAlerts()->unread()->latest()->take(5)->get() : collect();
     @endphp
 
+    @if ($authUser && $authUser->isSystemAdmin())
+        <!-- SUPER ADMIN BANNER TRÊN ĐẦU GIAO DIỆN GIA ĐÌNH -->
+        <div class="py-1 px-3 d-flex justify-content-between align-items-center text-white" style="background: linear-gradient(90deg, #b91c1c 0%, #0f172a 100%); font-size: 12px; z-index: 1050; position: relative;">
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-white text-danger fw-bold text-uppercase" style="font-size: 10px;">
+                    <i class="bi bi-shield-lock-fill me-1"></i>SUPER ADMIN
+                </span>
+                <span>Bạn đang truy cập giao diện Hộ gia đình với tư cách <strong>Quản trị viên Hệ thống</strong>. Bạn có toàn quyền tra cứu & xử lý kỹ thuật.</span>
+            </div>
+            <a href="{{ route('admin.dashboard') }}" class="btn btn-sm btn-light py-0 px-2 fw-bold text-danger d-inline-flex align-items-center gap-1 shadow-sm" style="font-size: 11.5px; height: 24px;">
+                <i class="bi bi-speedometer2"></i>
+                <span>Đến Bảng Quản trị Hệ thống &rarr;</span>
+            </a>
+        </div>
+    @endif
+
     <!-- TOP SUBBAR: Logo, Hộ gia đình, Hotline, User info -->
     <header class="top-subbar d-flex align-items-center">
         <div class="container-fluid px-3 d-flex align-items-center justify-content-between">
@@ -257,12 +273,19 @@
                 </a>
 
                 @if ($authFamily)
-                    <div class="family-chip ms-2" onclick="copyFamilyCode('{{ $authFamily->code }}')" title="Bấm để sao chép mã mời gia đình">
-                        <i class="bi bi-house-door"></i>
-                        <span>{{ $authFamily->name }}</span>
-                        <span class="badge bg-primary text-white" style="font-size: 10px;">{{ $authFamily->code }}</span>
-                        <i class="bi bi-copy text-muted" style="font-size: 11px;"></i>
-                    </div>
+                    @if ($authUser->isFamilyAdmin())
+                        <div class="family-chip ms-2" onclick="copyFamilyCode('{{ $authFamily->code }}')" title="Chủ hộ: Bấm để sao chép mã mời thành viên vào gia đình">
+                            <i class="bi bi-house-door-fill text-primary"></i>
+                            <span>{{ $authFamily->name }}</span>
+                            <span class="badge bg-primary text-white" style="font-size: 10px;">{{ $authFamily->code }}</span>
+                            <i class="bi bi-copy text-primary" style="font-size: 11px;"></i>
+                        </div>
+                    @else
+                        <div class="family-chip ms-2" style="cursor: default;" title="Hộ gia đình của bạn">
+                            <i class="bi bi-house-door text-secondary"></i>
+                            <span>{{ $authFamily->name }}</span>
+                        </div>
+                    @endif
                 @endif
             </div>
 
@@ -307,7 +330,7 @@
                 </div>
 
                 @if ($authUser->isSystemAdmin())
-                    <a href="{{ route('admin.dashboard') }}" class="btn btn-sm btn-danger py-0 px-2 d-none d-md-inline-flex align-items-center gap-1 shadow-sm" style="font-size: 11.5px; height: 26px;">
+                    <a href="{{ route('admin.dashboard') }}" class="btn btn-sm btn-danger py-0 px-2 d-inline-flex align-items-center gap-1 shadow-sm fw-bold" style="font-size: 11.5px; height: 26px;">
                         <i class="bi bi-shield-lock-fill"></i>
                         <span>Quản trị Hệ thống</span>
                     </a>
@@ -325,13 +348,19 @@
                         @if ($authUser->isSystemAdmin())
                             <span class="badge bg-danger text-white" style="font-size: 10px;">Quản trị viên</span>
                         @elseif ($authUser->isFamilyAdmin())
-                            <span class="badge bg-primary-subtle text-primary" style="font-size: 10px;">Chủ hộ</span>
+                            <span class="badge bg-primary text-white" style="font-size: 10px;">Chủ hộ</span>
+                        @elseif ($authUser->isDoctorOrCaregiver())
+                            <span class="badge bg-success text-white" style="font-size: 10px;">Bác sĩ / Chăm sóc</span>
                         @else
-                            <span class="badge bg-secondary-subtle text-secondary" style="font-size: 10px;">Thành viên</span>
+                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle" style="font-size: 10px;">Thành viên</span>
                         @endif
                         <i class="bi bi-chevron-down" style="font-size: 10px;"></i>
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end shadow-sm border py-1" style="font-size: 12.5px;">
+                        <li class="px-3 py-1 bg-light border-bottom mb-1">
+                            <div class="fw-bold text-dark">{{ $authUser->name }}</div>
+                            <div class="small text-muted">{{ $authUser->role_name }}</div>
+                        </li>
                         @if ($authUser->isSystemAdmin())
                             <li>
                                 <a class="dropdown-item py-1 fw-bold text-danger" href="{{ route('admin.dashboard') }}">
@@ -458,6 +487,42 @@
                 <i class="bi bi-exclamation-triangle-fill me-2 fs-6"></i>
                 <div>{{ session('warning') }}</div>
                 <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+            </div>
+        @endif
+
+        @if (session('danger'))
+            <div class="alert alert-danger alert-dismissible fade show py-2 px-3 mb-3 d-flex align-items-center" role="alert">
+                <i class="bi bi-x-circle-fill me-2 fs-6"></i>
+                <div>{{ session('danger') }}</div>
+                <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+            </div>
+        @endif
+
+        <!-- THANH NHẬN BIẾT VAI TRÒ & QUYỀN HẠN TÀI KHOẢN -->
+        @if ($authUser && $authUser->isMember())
+            <div class="alert alert-light border py-2 px-3 mb-3 d-flex align-items-center justify-content-between shadow-sm flex-wrap gap-2" style="background-color: #f8fafc; font-size: 12.5px; border-left: 4px solid #64748b !important;">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-secondary text-white py-1 px-2" style="font-size: 11px;">
+                        <i class="bi bi-person-check-fill me-1"></i>Thành viên gia đình
+                    </span>
+                    <span class="text-secondary">
+                        Bạn đang sử dụng hệ thống với vai trò <strong>Thành viên</strong>. Bạn có quyền tra cứu tủ thuốc, điểm danh cữ uống thuốc và cập nhật hồ sơ cá nhân.
+                    </span>
+                </div>
+                <span class="text-muted small" style="font-size: 11.5px;">
+                    <i class="bi bi-shield-check text-primary me-1"></i>Quản trị kho & sổ hộ do <strong>Chủ hộ</strong> phụ trách
+                </span>
+            </div>
+        @elseif ($authUser && $authUser->isDoctorOrCaregiver())
+            <div class="alert alert-success bg-success bg-opacity-10 border-success border-opacity-25 py-2 px-3 mb-3 d-flex align-items-center justify-content-between shadow-sm flex-wrap gap-2" style="font-size: 12.5px; border-left: 4px solid #16a34a !important;">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-success text-white py-1 px-2" style="font-size: 11px;">
+                        <i class="bi bi-heart-pulse-fill me-1"></i>Bác sĩ / Chăm sóc y tế
+                    </span>
+                    <span class="text-success-emphasis">
+                        Bạn có thẩm quyền chuyên môn: <strong>Kê đơn đợt điều trị</strong>, <strong>thiết lập lịch uống thuốc</strong> và theo dõi y tế của các thành viên.
+                    </span>
+                </div>
             </div>
         @endif
 

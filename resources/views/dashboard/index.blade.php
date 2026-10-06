@@ -118,16 +118,28 @@
         <!-- Action Toolbar -->
         <div class="content-card mb-3">
             <div class="d-flex align-items-center justify-content-between p-2 flex-wrap gap-2">
-                <div class="d-flex align-items-center gap-2">
-                    <a href="{{ route('cabinet.index') }}" class="btn btn-erp-success">
-                        <i class="bi bi-plus-lg me-1"></i> Thêm mới thuốc
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    @if ($user->canManageCabinet())
+                        <a href="{{ route('cabinet.items.create') }}" class="btn btn-erp-success">
+                            <i class="bi bi-plus-lg me-1"></i> Thêm mới thuốc vào tủ
+                        </a>
+                    @endif
+
+                    @if ($user->canManageTreatments())
+                        <a href="{{ route('treatment-courses.create') }}" class="btn btn-erp-primary">
+                            <i class="bi bi-file-earmark-medical me-1"></i> Kê đơn thuốc mới
+                        </a>
+                    @endif
+
+                    <a href="{{ route('schedules.index') }}" class="btn {{ $user->isMember() ? 'btn-erp-primary' : 'btn-outline-secondary btn-sm' }}">
+                        <i class="bi bi-calendar-check me-1"></i> {{ $user->isMember() ? 'Điểm danh cữ uống thuốc hôm nay' : 'Điểm danh uống thuốc' }}
                     </a>
-                    <a href="{{ route('treatment-courses.index') }}" class="btn btn-erp-primary">
-                        <i class="bi bi-file-earmark-medical me-1"></i> Kê đơn thuốc mới
-                    </a>
-                    <a href="{{ route('schedules.index') }}" class="btn btn-outline-secondary btn-sm" style="font-size: 13px;">
-                        <i class="bi bi-calendar-check me-1"></i> Điểm danh uống thuốc
-                    </a>
+
+                    @if ($user->isMember())
+                        <a href="{{ route('cabinet.index') }}" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-capsule me-1"></i> Tra cứu tủ thuốc gia đình
+                        </a>
+                    @endif
                 </div>
 
                 <div class="text-end">

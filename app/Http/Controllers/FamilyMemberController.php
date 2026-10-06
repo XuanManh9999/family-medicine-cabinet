@@ -148,6 +148,7 @@ class FamilyMemberController extends Controller
     public function edit(Request $request, FamilyMember $member)
     {
         $this->authorizeMember($request, $member);
+        abort_unless($request->user()->canEditMember($member), 403, 'Bạn chỉ có quyền chỉnh sửa hồ sơ sức khỏe của chính mình hoặc cần quyền Chủ hộ.');
 
         $family = $request->user()->family;
         $availableUsers = $family->users()
@@ -170,6 +171,7 @@ class FamilyMemberController extends Controller
     public function update(Request $request, FamilyMember $member)
     {
         $this->authorizeMember($request, $member);
+        abort_unless($request->user()->canEditMember($member), 403, 'Bạn chỉ có quyền chỉnh sửa hồ sơ sức khỏe của chính mình hoặc cần quyền Chủ hộ.');
 
         $data = $this->validatedData($request, $member->id);
 
@@ -240,7 +242,7 @@ class FamilyMemberController extends Controller
     private function ensureAdmin(Request $request): Family
     {
         $family = $this->ensureFamily($request);
-        abort_unless($request->user()->isFamilyAdmin(), 403, 'Chỉ Chủ hộ mới có quyền thực hiện thao tác này.');
+        abort_unless($request->user()->canManageMembers(), 403, 'Chỉ Chủ hộ hoặc Quản trị viên hệ thống mới có quyền thực hiện thao tác này.');
         return $family;
     }
 

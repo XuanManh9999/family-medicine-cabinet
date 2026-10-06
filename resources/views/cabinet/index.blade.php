@@ -8,6 +8,15 @@
     <div>
         <h1 class="h4 mb-1 fw-bold text-dark d-flex align-items-center gap-2">
             <i class="bi bi-capsule text-primary"></i> Tủ thuốc gia đình
+            @if (!auth()->user()->canManageCabinet())
+                <span class="badge bg-secondary-subtle text-secondary border fw-normal" style="font-size: 11.5px;">
+                    <i class="bi bi-eye me-1"></i>Chế độ xem & tra cứu
+                </span>
+            @else
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-normal" style="font-size: 11.5px;">
+                    <i class="bi bi-shield-check me-1"></i>Toàn quyền quản trị kho
+                </span>
+            @endif
         </h1>
         <div class="text-muted small">
             Quản lý chi tiết từng lô thuốc, giám sát hạn sử dụng & kiểm soát tồn kho y tế an toàn.
@@ -23,7 +32,7 @@
             <i class="bi bi-file-earmark-excel me-1"></i> Xuất Excel
         </a>
 
-        @if (auth()->user()->isFamilyAdmin())
+        @if (auth()->user()->canManageCabinet())
             <!-- Nhập Excel -->
             <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#importExcelModal" title="Nhập danh sách nhiều thuốc cùng lúc từ file Excel/CSV">
                 <i class="bi bi-file-earmark-arrow-up me-1"></i> Nhập từ Excel
@@ -37,7 +46,7 @@
             </button>
         @endif
 
-        @if (auth()->user()->isFamilyAdmin())
+        @if (auth()->user()->canManageCabinet())
             <a href="{{ route('cabinet.items.create') }}" class="btn btn-erp-primary btn-sm">
                 <i class="bi bi-plus-lg me-1"></i> Thêm thuốc vào tủ
             </a>
@@ -388,7 +397,7 @@
                             <i class="bi bi-eye"></i>
                         </button>
 
-                        @if (auth()->user()->isFamilyAdmin())
+                        @if (auth()->user()->canManageCabinet())
                             <a href="{{ route('cabinet.items.edit', $item) }}" class="btn btn-sm btn-outline-primary" title="Sửa thông tin"><i class="bi bi-pencil"></i></a>
                             <button type="button" class="btn btn-sm btn-outline-danger btn-delete-cabinet" title="Xóa khỏi tủ"
                                     data-action="{{ route('cabinet.items.destroy', $item) }}"
@@ -406,7 +415,7 @@
                         <i class="bi bi-capsule fs-1 text-muted d-block mb-2"></i>
                         <div class="fw-semibold fs-6">{{ request()->filled('q') || $filter !== 'all' || request()->filled('location') || request()->filled('category_id') ? 'Không tìm thấy thuốc phù hợp bộ lọc' : 'Tủ thuốc chưa có mục thuốc nào' }}</div>
                         <div class="text-muted small mt-1">Thêm các lô thuốc đang có trong gia đình để tự động theo dõi hạn dùng và nhận cảnh báo an toàn.</div>
-                        @if (auth()->user()->isFamilyAdmin() && !request()->filled('q') && $filter === 'all')
+                        @if (auth()->user()->canManageCabinet() && !request()->filled('q') && $filter === 'all')
                             <a href="{{ route('cabinet.items.create') }}" class="btn btn-sm btn-erp-primary mt-3">
                                 <i class="bi bi-plus-lg me-1"></i>Thêm thuốc đầu tiên
                             </a>

@@ -12,9 +12,12 @@ use App\Http\Controllers\MedicineController;
 use App\Http\Controllers\AiAssistantController;
 use Illuminate\Support\Facades\Route;
 
-// Trang chủ: Chuyển hướng theo trạng thái đăng nhập
+// Trang chủ: Chuyển hướng theo trạng thái đăng nhập và vai trò
 Route::get('/', function () {
-    return auth()->check() ? redirect()->route('dashboard') : redirect()->route('login');
+    if (auth()->check()) {
+        return auth()->user()->isSystemAdmin() ? redirect()->route('admin.dashboard') : redirect()->route('dashboard');
+    }
+    return redirect()->route('login');
 });
 
 // Trang giới thiệu & Giới thiệu Nền tảng

@@ -9,8 +9,8 @@
         <div class="content-card mb-3">
             <div class="content-card-header">
                 <span><i class="bi bi-person-gear me-1 text-primary"></i>THÔNG TIN TÀI KHOẢN CỦA BẠN</span>
-                <span class="badge {{ $user->isFamilyAdmin() ? 'bg-primary' : 'bg-secondary' }}">
-                    {{ $user->isFamilyAdmin() ? 'Chủ hộ (Admin)' : 'Thành viên' }}
+                <span class="badge {{ $user->role_badge_class }}">
+                    {{ $user->role_name }}
                 </span>
             </div>
             <div class="content-card-body">
@@ -28,7 +28,7 @@
                                     <img src="{{ $user->avatar_url }}" alt="{{ $user->name }}" 
                                          id="avatarPreview" class="rounded-circle border border-2 border-primary-subtle shadow-sm w-100 h-100" 
                                          style="object-fit: cover;">
-                                    <div id="avatarFallback" class="d-none rounded-circle bg-white border border-2 border-secondary-subtle d-flex align-items-center justify-content-center w-100 h-100 shadow-sm">
+                                     <div id="avatarFallback" class="d-none rounded-circle bg-white border border-2 border-secondary-subtle d-flex align-items-center justify-content-center w-100 h-100 shadow-sm">
                                         <i class="bi bi-person-fill" style="font-size: 38px; color: #94a3b8;"></i>
                                     </div>
                                 @else
@@ -134,82 +134,148 @@
                 </form>
             </div>
         </div>
+
+        <!-- Box quyền hạn vai trò -->
+        <div class="content-card mb-3">
+            <div class="content-card-header">
+                <span><i class="bi bi-shield-check me-1 text-primary"></i>PHÂN QUYỀN HỆ THỐNG CỦA BẠN</span>
+            </div>
+            <div class="content-card-body p-3">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <span class="badge {{ $user->role_badge_class }} fs-6">{{ $user->role_name }}</span>
+                    <span class="text-muted small">({{ $user->role }})</span>
+                </div>
+                <div class="small text-secondary">
+                    @if($user->isSuperAdmin())
+                        <div class="alert alert-danger py-2 px-3 mb-0 small">
+                            <i class="bi bi-shield-fill-exclamation me-1"></i>
+                            <strong>Quản trị viên toàn hệ thống:</strong> Toàn quyền quản lý người dùng, các hộ gia đình và kho Dược thư dùng chung.
+                        </div>
+                    @elseif($user->isFamilyAdmin())
+                        <ul class="list-unstyled mb-0 d-grid gap-1">
+                            <li><i class="bi bi-check-circle-fill text-success me-1"></i> Toàn quyền quản trị tủ thuốc (thêm/sửa/xóa thuốc, nhập Excel).</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-1"></i> Quản lý thành viên gia đình (thêm/sửa hồ sơ y tế/xóa).</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-1"></i> Quản lý lịch uống thuốc, đơn điều trị và chi tiêu tủ thuốc.</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-1"></i> Cung cấp mã gia đình để mời thành viên khác vào nhà.</li>
+                        </ul>
+                    @elseif($user->isDoctorCaregiver())
+                        <ul class="list-unstyled mb-0 d-grid gap-1">
+                            <li><i class="bi bi-check-circle-fill text-success me-1"></i> Tạo và quản lý các phác đồ điều trị, đơn thuốc.</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-1"></i> Thiết lập và quản lý lịch nhắc uống thuốc cho bệnh nhân.</li>
+                            <li><i class="bi bi-dash-circle text-muted me-1"></i> Giới hạn: Không quản lý chi phí và không thay đổi thành viên gia đình.</li>
+                        </ul>
+                    @else
+                        <ul class="list-unstyled mb-0 d-grid gap-1">
+                            <li><i class="bi bi-check-circle-fill text-success me-1"></i> Tra cứu danh mục thuốc và hướng dẫn sử dụng trong tủ thuốc.</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-1"></i> Xem lịch và <strong>điểm danh uống thuốc</strong> hàng ngày.</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-1"></i> Chỉnh sửa thông tin hồ sơ sức khỏe cá nhân của chính mình.</li>
+                            <li><i class="bi bi-shield-lock text-warning me-1"></i> <em>Lưu ý: Không thể thêm, sửa, xóa danh mục thuốc hoặc xóa lịch của người khác.</em></li>
+                        </ul>
+                    @endif
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Cột phải: Thông tin hộ gia đình & Tài khoản -->
     <div class="col-12 col-lg-7">
-        <!-- Box Mã gia đình -->
-        <div class="content-card mb-3">
-            <div class="content-card-header">
-                <span><i class="bi bi-house-door me-1 text-primary"></i>THÔNG TIN HỘ GIA ĐÌNH</span>
-                <span class="badge bg-light text-dark border">ID #{{ $user->family->id }}</span>
-            </div>
-            <div class="content-card-body">
-                <div class="row align-items-center">
-                    <div class="col-md-7">
-                        <h5 class="fw-bold text-primary mb-1">{{ $user->family->name }}</h5>
-                        <div class="text-muted small mb-2"><i class="bi bi-geo-alt me-1"></i>{{ $user->family->address ?? 'Chưa khai báo địa chỉ' }}</div>
-                        <div class="text-muted small">Ngày đăng ký hệ thống: {{ $user->family->created_at->format('d/m/Y') }}</div>
-                    </div>
-                    <div class="col-md-5 text-md-end mt-2 mt-md-0">
-                        <div class="p-2 border rounded bg-light d-inline-block text-center w-100">
-                            <div class="text-muted" style="font-size: 11px;">MÃ MỜI GIA ĐÌNH</div>
-                            <div class="fs-4 fw-bold text-primary font-monospace">{{ $user->family->code }}</div>
-                            <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 mt-1" style="font-size: 11.5px;" onclick="copyFamilyCode('{{ $user->family->code }}')">
-                                <i class="bi bi-copy me-1"></i> Sao chép mã
-                            </button>
+        @if ($user->family)
+            <!-- Box Mã gia đình -->
+            <div class="content-card mb-3">
+                <div class="content-card-header">
+                    <span><i class="bi bi-house-door me-1 text-primary"></i>THÔNG TIN HỘ GIA ĐÌNH</span>
+                    <span class="badge bg-light text-dark border">ID #{{ $user->family->id }}</span>
+                </div>
+                <div class="content-card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-7">
+                            <h5 class="fw-bold text-primary mb-1">{{ $user->family->name }}</h5>
+                            <div class="text-muted small mb-2"><i class="bi bi-geo-alt me-1"></i>{{ $user->family->address ?? 'Chưa khai báo địa chỉ' }}</div>
+                            <div class="text-muted small">Ngày đăng ký hệ thống: {{ $user->family->created_at->format('d/m/Y') }}</div>
+                        </div>
+                        <div class="col-md-5 text-md-end mt-2 mt-md-0">
+                            @if ($user->isFamilyAdmin())
+                                <div class="p-2 border rounded bg-light d-inline-block text-center w-100">
+                                    <div class="text-muted" style="font-size: 11px;">MÃ MỜI GIA ĐÌNH</div>
+                                    <div class="fs-4 fw-bold text-primary font-monospace">{{ $user->family->code }}</div>
+                                    <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 mt-1" style="font-size: 11.5px;" onclick="copyFamilyCode('{{ $user->family->code }}')">
+                                        <i class="bi bi-copy me-1"></i> Sao chép mã
+                                    </button>
+                                </div>
+                            @else
+                                <div class="p-2 border rounded bg-light d-inline-block text-center w-100">
+                                    <div class="text-muted" style="font-size: 11px;">MÃ GIA ĐÌNH</div>
+                                    <div class="fs-6 fw-bold text-secondary font-monospace">••••••</div>
+                                    <span class="badge bg-secondary-subtle text-secondary" style="font-size: 10.5px;">Chỉ Chủ hộ xem & chia sẻ</span>
+                                </div>
+                            @endif
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Bảng danh sách tài khoản -->
-        <div class="content-card mb-3">
-            <div class="content-card-header">
-                <span><i class="bi bi-people me-1 text-primary"></i>TÀI KHOẢN TRUY CẬP HỘ GIA ĐÌNH ({{ $user->family->users->count() }})</span>
-            </div>
-            <div class="table-responsive">
-                <table class="table table-erp table-hover align-middle">
-                    <thead>
-                        <tr>
-                            <th>Họ tên</th>
-                            <th>Email đăng nhập</th>
-                            <th>Vai trò</th>
-                            <th>Số điện thoại</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach ($user->family->users as $u)
+            <!-- Bảng danh sách tài khoản -->
+            <div class="content-card mb-3">
+                <div class="content-card-header">
+                    <span><i class="bi bi-people me-1 text-primary"></i>TÀI KHOẢN TRUY CẬP HỘ GIA ĐÌNH ({{ $user->family->users->count() }})</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-erp table-hover align-middle">
+                        <thead>
                             <tr>
-                                <td class="fw-bold">
-                                    <div class="d-flex align-items-center">
-                                        @if ($u->avatar_url)
-                                            <img src="{{ $u->avatar_url }}" alt="{{ $u->name }}" class="rounded-circle me-2 border" style="width: 24px; height: 24px; object-fit: cover;">
-                                        @else
-                                            <span class="rounded-circle bg-light border d-inline-flex align-items-center justify-content-center me-2 text-secondary" style="width: 24px; height: 24px;">
-                                                <i class="bi bi-person-fill" style="font-size: 13px; color: #94a3b8;"></i>
-                                            </span>
-                                        @endif
-                                        <span>{{ $u->name }}</span>
-                                        @if ($u->id === $user->id)
-                                            <span class="badge bg-light text-muted border ms-1" style="font-size: 10px;">Bạn</span>
-                                        @endif
-                                    </div>
-                                </td>
-                                <td>{{ $u->email }}</td>
-                                <td>
-                                    <span class="badge {{ $u->isFamilyAdmin() ? 'bg-primary-subtle text-primary' : 'bg-secondary-subtle text-secondary' }}">
-                                        {{ $u->isFamilyAdmin() ? 'Chủ hộ' : 'Thành viên' }}
-                                    </span>
-                                </td>
-                                <td>{{ $u->phone ?? '—' }}</td>
+                                <th>Họ tên</th>
+                                <th>Email đăng nhập</th>
+                                <th>Vai trò</th>
+                                <th>Số điện thoại</th>
                             </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            @foreach ($user->family->users as $u)
+                                <tr>
+                                    <td class="fw-bold">
+                                        <div class="d-flex align-items-center">
+                                            @if ($u->avatar_url)
+                                                <img src="{{ $u->avatar_url }}" alt="{{ $u->name }}" class="rounded-circle me-2 border" style="width: 24px; height: 24px; object-fit: cover;">
+                                            @else
+                                                <span class="rounded-circle bg-light border d-inline-flex align-items-center justify-content-center me-2 text-secondary" style="width: 24px; height: 24px;">
+                                                    <i class="bi bi-person-fill" style="font-size: 13px; color: #94a3b8;"></i>
+                                                </span>
+                                            @endif
+                                            <span>{{ $u->name }}</span>
+                                            @if ($u->id === $user->id)
+                                                <span class="badge bg-light text-muted border ms-1" style="font-size: 10px;">Bạn</span>
+                                            @endif
+                                        </div>
+                                    </td>
+                                    <td>{{ $u->email }}</td>
+                                    <td>
+                                        <span class="badge {{ $u->role_badge_class }}">
+                                            {{ $u->role_name }}
+                                        </span>
+                                    </td>
+                                    <td>{{ $u->phone ?? '—' }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
             </div>
-        </div>
+        @else
+            <!-- Tài khoản Quản trị viên hệ thống độc lập -->
+            <div class="content-card mb-3">
+                <div class="content-card-header bg-danger-subtle text-danger">
+                    <span><i class="bi bi-shield-shaded me-1"></i>TÀI KHOẢN QUẢN TRỊ VIÊN TOÀN HỆ THỐNG</span>
+                </div>
+                <div class="content-card-body text-center py-4">
+                    <i class="bi bi-shield-check text-danger display-4 mb-2"></i>
+                    <h5 class="fw-bold">Tài khoản này có đặc quyền Root / System Admin</h5>
+                    <p class="text-muted small mb-3">Tài khoản quản trị viên không gắn liền với hộ gia đình riêng biệt. Bạn có thể quản lý mọi hộ gia đình và dữ liệu hệ thống tại Bảng điều khiển Quản trị.</p>
+                    <a href="{{ route('admin.dashboard') }}" class="btn btn-danger">
+                        <i class="bi bi-speedometer2 me-1"></i> Đi đến Trang Quản Trị Hệ Thống
+                    </a>
+                </div>
+            </div>
+        @endif
     </div>
 </div>
 

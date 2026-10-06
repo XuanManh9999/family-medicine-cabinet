@@ -9,6 +9,15 @@
         <h5 class="fw-bold mb-1 text-dark d-flex align-items-center gap-2">
             <i class="bi bi-alarm-fill text-primary fs-4"></i>
             Lịch uống thuốc & Nhật ký tuân thủ
+            @if (!auth()->user()->canManageSchedules())
+                <span class="badge bg-secondary-subtle text-secondary border fw-normal" style="font-size: 11.5px;">
+                    <i class="bi bi-check2-circle me-1"></i>Chế độ điểm danh cữ uống
+                </span>
+            @else
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-normal" style="font-size: 11.5px;">
+                    <i class="bi bi-gear-fill me-1"></i>Toàn quyền thiết lập lịch
+                </span>
+            @endif
         </h5>
         <div class="text-muted small">
             Theo dõi cữ uống theo thời gian thực, nhắc nhở đúng giờ, ghi nhận tuân thủ và tự động trừ số lượng tồn trong Tủ thuốc.
@@ -46,10 +55,12 @@
             </a>
         @endif
 
-        <a href="{{ route('schedules.create') }}" class="btn btn-erp-primary d-inline-flex align-items-center gap-1 shadow-sm">
-            <i class="bi bi-plus-circle"></i>
-            <span>Thêm lịch uống</span>
-        </a>
+        @if (auth()->user()->canManageSchedules())
+            <a href="{{ route('schedules.create') }}" class="btn btn-erp-primary d-inline-flex align-items-center gap-1 shadow-sm">
+                <i class="bi bi-plus-circle"></i>
+                <span>Thêm lịch uống</span>
+            </a>
+        @endif
     </div>
 </div>
 
@@ -191,9 +202,11 @@
                 <a href="{{ route('treatment-courses.index') }}" class="btn btn-sm btn-outline-primary">
                     <i class="bi bi-journal-medical me-1"></i>Xem danh sách Đơn thuốc
                 </a>
-                <a href="{{ route('schedules.create') }}" class="btn btn-sm btn-erp-primary">
-                    <i class="bi bi-plus-circle me-1"></i>Thêm lịch uống riêng
-                </a>
+                @if (auth()->user()->canManageSchedules())
+                    <a href="{{ route('schedules.create') }}" class="btn btn-sm btn-erp-primary">
+                        <i class="bi bi-plus-circle me-1"></i>Thêm lịch uống riêng
+                    </a>
+                @endif
             </div>
         </div>
     @else
@@ -411,37 +424,47 @@
                                 <div>Đến: {{ $s->end_date ? $s->end_date->format('d/m/Y') : 'Dài hạn' }}</div>
                             </td>
                             <td class="text-center">
-                                <form method="POST" action="{{ route('schedules.toggle', $s) }}">
-                                    @csrf
-                                    @method('PATCH')
-                                    <button type="submit" class="btn btn-sm py-0 px-2 {{ $s->is_active ? 'btn-success' : 'btn-outline-secondary' }}" style="font-size: 11.5px;" title="Nhấn để Bật/Tắt">
-                                        {{ $s->is_active ? 'Đang bật' : 'Tạm dừng' }}
-                                    </button>
-                                </form>
+                                @if (auth()->user()->canManageSchedules())
+                                    <form method="POST" action="{{ route('schedules.toggle', $s) }}">
+                                        @csrf
+                                        @method('PATCH')
+                                        <button type="submit" class="btn btn-sm py-0 px-2 {{ $s->is_active ? 'btn-success' : 'btn-outline-secondary' }}" style="font-size: 11.5px;" title="Nhấn để Bật/Tắt">
+                                            {{ $s->is_active ? 'Đang bật' : 'Tạm dừng' }}
+                                        </button>
+                                    </form>
+                                @else
+                                    <span class="badge {{ $s->is_active ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary text-white' }}" style="font-size: 11px;">
+                                        {{ $s->is_active ? 'Đang nhắc' : 'Tạm dừng' }}
+                                    </span>
+                                @endif
                             </td>
                             <td class="text-center">
-                                <div class="dropdown">
-                                    <button class="btn btn-sm btn-light border px-2 py-1" data-bs-toggle="dropdown">
-                                        <i class="bi bi-three-dots-vertical"></i>
-                                    </button>
-                                    <ul class="dropdown-menu dropdown-menu-end shadow-sm border py-1" style="font-size: 12.5px;">
-                                        <li>
-                                            <a class="dropdown-item py-1" href="{{ route('schedules.edit', $s) }}">
-                                                <i class="bi bi-pencil text-warning me-2"></i>Chỉnh sửa lịch
-                                            </a>
-                                        </li>
-                                        <li><hr class="dropdown-divider my-1"></li>
-                                        <li>
-                                            <form method="POST" action="{{ route('schedules.destroy', $s) }}" onsubmit="return confirm('Bạn có chắc chắn muốn xóa lịch uống thuốc này?')">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="dropdown-item py-1 text-danger">
-                                                    <i class="bi bi-trash me-2"></i>Xóa lịch
-                                                </button>
-                                            </form>
-                                        </li>
-                                    </ul>
-                                </div>
+                                @if (auth()->user()->canManageSchedules())
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-light border px-2 py-1" data-bs-toggle="dropdown">
+                                            <i class="bi bi-three-dots-vertical"></i>
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end shadow-sm border py-1" style="font-size: 12.5px;">
+                                            <li>
+                                                <a class="dropdown-item py-1" href="{{ route('schedules.edit', $s) }}">
+                                                    <i class="bi bi-pencil text-warning me-2"></i>Chỉnh sửa lịch
+                                                </a>
+                                            </li>
+                                            <li><hr class="dropdown-divider my-1"></li>
+                                            <li>
+                                                <form method="POST" action="{{ route('schedules.destroy', $s) }}" onsubmit="return confirm('Bạn có chắc chắn muốn xóa lịch uống thuốc này?')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="dropdown-item py-1 text-danger">
+                                                        <i class="bi bi-trash me-2"></i>Xóa lịch
+                                                    </button>
+                                                </form>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                @else
+                                    <span class="text-muted small" title="Chỉ Chủ hộ hoặc Bác sĩ mới có quyền chỉnh sửa">—</span>
+                                @endif
                             </td>
                         </tr>
                     @empty

@@ -16,12 +16,14 @@
     </div>
 
     <div class="d-flex align-items-center gap-2">
-        <form method="POST" action="{{ route('alerts.scan') }}" class="d-inline" id="scanForm">
-            @csrf
-            <button type="submit" class="btn btn-sm btn-erp-primary shadow-sm" id="btnScan" onclick="this.innerHTML='<span class=\'spinner-border spinner-border-sm me-1\'></span>Đang quét...';">
-                <i class="bi bi-arrow-repeat me-1"></i>Quét an toàn tủ thuốc ngay
-            </button>
-        </form>
+        @if (auth()->user()->canManageCabinet())
+            <form method="POST" action="{{ route('alerts.scan') }}" class="d-inline" id="scanForm">
+                @csrf
+                <button type="submit" class="btn btn-sm btn-erp-primary shadow-sm" id="btnScan" onclick="this.innerHTML='<span class=\'spinner-border spinner-border-sm me-1\'></span>Đang quét...';">
+                    <i class="bi bi-arrow-repeat me-1"></i>Quét an toàn tủ thuốc ngay
+                </button>
+            </form>
+        @endif
 
         @if ($unreadCount > 0)
             <form method="POST" action="{{ route('alerts.mark-all-read') }}" class="d-inline">
@@ -232,14 +234,16 @@
                                             </form>
                                         @endif
 
-                                        <form method="POST" action="{{ route('alerts.destroy', $alert) }}" class="d-inline" onsubmit="return confirm('Bạn có chắc muốn xóa cảnh báo này không?');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn-xs btn-outline-danger py-1 px-2 d-inline-flex align-items-center gap-1" title="Xóa cảnh báo">
-                                                <i class="bi bi-trash"></i>
-                                                <span>Xóa</span>
-                                            </button>
-                                        </form>
+                                        @if (auth()->user()->canDeleteAlerts())
+                                            <form method="POST" action="{{ route('alerts.destroy', $alert) }}" class="d-inline" onsubmit="return confirm('Bạn có chắc muốn xóa cảnh báo này không?');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-xs btn-outline-danger py-1 px-2 d-inline-flex align-items-center gap-1" title="Xóa cảnh báo">
+                                                    <i class="bi bi-trash"></i>
+                                                    <span>Xóa</span>
+                                                </button>
+                                            </form>
+                                        @endif
                                     </div>
                                 </div>
                             </div>

@@ -21,6 +21,9 @@ class DashboardController extends Controller
         $family = $user->family;
 
         if (!$family) {
+            if ($user->isSystemAdmin()) {
+                return redirect()->route('admin.dashboard');
+            }
             return redirect()->route('profile')->with('warning', 'Vui lòng liên kết hoặc tạo Hộ gia đình để bắt đầu sử dụng.');
         }
 

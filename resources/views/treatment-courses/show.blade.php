@@ -62,37 +62,45 @@
             <i class="bi bi-printer me-1"></i>In đơn thuốc
         </button>
 
-        <form method="POST" action="{{ route('treatment-courses.toggle-status', $treatmentCourse) }}" class="d-inline">
-            @csrf
-            @method('PATCH')
-            <button type="submit" class="btn btn-sm {{ $treatmentCourse->status === 'dang_dieu_tri' ? 'btn-outline-success' : 'btn-outline-warning' }}">
-                <i class="bi bi-arrow-repeat me-1"></i>
-                {{ $treatmentCourse->status === 'dang_dieu_tri' ? 'Đánh dấu Hoàn thành' : 'Kích hoạt lại' }}
-            </button>
-        </form>
+        @if (auth()->user()->canManageTreatments())
+            <form method="POST" action="{{ route('treatment-courses.toggle-status', $treatmentCourse) }}" class="d-inline">
+                @csrf
+                @method('PATCH')
+                <button type="submit" class="btn btn-sm {{ $treatmentCourse->status === 'dang_dieu_tri' ? 'btn-outline-success' : 'btn-outline-warning' }}">
+                    <i class="bi bi-arrow-repeat me-1"></i>
+                    {{ $treatmentCourse->status === 'dang_dieu_tri' ? 'Đánh dấu Hoàn thành' : 'Kích hoạt lại' }}
+                </button>
+            </form>
 
-        <a href="{{ route('treatment-courses.edit', $treatmentCourse) }}" class="btn btn-sm btn-erp-primary">
-            <i class="bi bi-pencil me-1"></i>Chỉnh sửa
-        </a>
+            <a href="{{ route('treatment-courses.edit', $treatmentCourse) }}" class="btn btn-sm btn-erp-primary">
+                <i class="bi bi-pencil me-1"></i>Chỉnh sửa
+            </a>
+        @endif
 
-        <div class="dropdown">
-            <button class="btn btn-sm btn-light border" data-bs-toggle="dropdown">
-                <i class="bi bi-three-dots"></i>
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end shadow-sm border py-1" style="font-size: 12.5px;">
-                <li>
-                    <a class="dropdown-item py-1" href="{{ route('treatment-courses.create', ['member_id' => $treatmentCourse->family_member_id]) }}">
-                        <i class="bi bi-plus-circle text-primary me-2"></i>Kê đơn mới cho người này
-                    </a>
-                </li>
-                <li><hr class="dropdown-divider my-1"></li>
-                <li>
-                    <button type="button" class="dropdown-item py-1 text-danger" onclick="confirmDeleteCourse()">
-                        <i class="bi bi-trash me-2"></i>Xóa đợt điều trị này
-                    </button>
-                </li>
-            </ul>
-        </div>
+        @if (auth()->user()->canManageTreatments() || auth()->user()->canDeleteTreatments())
+            <div class="dropdown">
+                <button class="btn btn-sm btn-light border" data-bs-toggle="dropdown">
+                    <i class="bi bi-three-dots"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm border py-1" style="font-size: 12.5px;">
+                    @if (auth()->user()->canManageTreatments())
+                        <li>
+                            <a class="dropdown-item py-1" href="{{ route('treatment-courses.create', ['member_id' => $treatmentCourse->family_member_id]) }}">
+                                <i class="bi bi-plus-circle text-primary me-2"></i>Kê đơn mới cho người này
+                            </a>
+                        </li>
+                    @endif
+                    @if (auth()->user()->canDeleteTreatments())
+                        <li><hr class="dropdown-divider my-1"></li>
+                        <li>
+                            <button type="button" class="dropdown-item py-1 text-danger" onclick="confirmDeleteCourse()">
+                                <i class="bi bi-trash me-2"></i>Xóa đợt điều trị này
+                            </button>
+                        </li>
+                    @endif
+                </ul>
+            </div>
+        @endif
     </div>
 </div>
 
@@ -119,12 +127,12 @@
                                         {{ $treatmentCourse->familyMember?->name }}
                                     </a>
                                 </h6>
-                                <div class="d-flex align-items-center gap-2 small mt-1">
-                                    <span class="badge bg-light text-secondary border">{{ $treatmentCourse->familyMember?->relationship_label }}</span>
-                                    <span>{{ $treatmentCourse->familyMember?->age ? $treatmentCourse->familyMember->age . ' tuổi' : '' }}</span>
-                                    <span>• Nhóm máu: <strong>{{ $treatmentCourse->familyMember?->blood_type ?? 'Chưa rõ' }}</strong></span>
+                                    <div class="d-flex align-items-center gap-2 small mt-1">
+                                        <span class="badge bg-light text-secondary border">{{ $treatmentCourse->familyMember?->relationship_label }}</span>
+                                        <span>{{ $treatmentCourse->familyMember?->age ? $treatmentCourse->familyMember->age . ' tuổi' : '' }}</span>
+                                        <span>• Nhóm máu: <strong>{{ $treatmentCourse->familyMember?->blood_type ?? 'Chưa rõ' }}</strong></span>
+                                    </div>
                                 </div>
-                            </div>
                         </div>
                     </div>
 

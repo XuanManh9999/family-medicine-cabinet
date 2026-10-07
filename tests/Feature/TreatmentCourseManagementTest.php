@@ -388,4 +388,69 @@ class TreatmentCourseManagementTest extends TestCase
             'explanation',
         ]);
     }
+
+    public function test_normal_member_cannot_manage_or_delete_treatment_courses(): void
+    {
+        $member = User::where('email', 'hoa.tran@gmail.com')->first();
+
+        // 1. Cannot access create form
+        $this->actingAs($member)
+            ->get(route('treatment-courses.create'))
+            ->assertStatus(403);
+
+        // 2. Cannot store new treatment course
+        $this->actingAs($member)
+            ->post(route('treatment-courses.store'), [
+                'family_member_id' => $this->grandpa->id,
+                'title' => 'Đơn thuốc thành viên tạo trái phép',
+                'start_date' => Carbon::today()->toDateString(),
+                'status' => 'dang_dieu_tri',
+                'items' => [
+                    ['medicine_name' => 'Thuốc A', 'dosage' => '1 viên'],
+                ],
+            ])
+            ->assertStatus(403);
+
+        // 3. Cannot delete treatment course
+        $course = TreatmentCourse::create([
+            'family_id' => $this->family->id,
+            'family_member_id' => $this->grandpa->id,
+            'title' => 'Đơn thuốc thử quyền xóa',
+            'start_date' => Carbon::today(),
+            'status' => 'dang_dieu_tri',
+        ]);
+
+        $this->actingAs($member)
+            ->delete(route('treatment-courses.destroy', $course))
+            ->assertStatus(403);
+    }
+
+    public function test_doctor_can_create_treatment_course_but_cannot_delete(): void
+    {
+        $doctor = User::create([
+            'family_id' => $this->family->id,
+            'name' => 'Bác sĩ Điều Trị',
+            'email' => 'doctor.dieutri@gmail.com',
+            'role' => 'doctor_caregiver',
+            'password' => bcrypt('password'),
+        ]);
+
+        // 1. Doctor can access create form
+        $this->actingAs($doctor)
+            ->get(route('treatment-courses.create'))
+            ->assertStatus(200);
+
+        // 2. Doctor cannot delete treatment course (only family_admin or system_admin can delete)
+        $course = TreatmentCourse::create([
+            'family_id' => $this->family->id,
+            'family_member_id' => $this->grandpa->id,
+            'title' => 'Đơn thuốc bác sĩ không thể xóa',
+            'start_date' => Carbon::today(),
+            'status' => 'dang_dieu_tri',
+        ]);
+
+        $this->actingAs($doctor)
+            ->delete(route('treatment-courses.destroy', $course))
+            ->assertStatus(403);
+    }
 }

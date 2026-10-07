@@ -111,4 +111,30 @@ class FamilyMemberManagementTest extends TestCase
             'id' => $adminMember->id,
         ]);
     }
+
+    public function test_normal_member_has_restricted_permissions_on_members(): void
+    {
+        $member = User::where('email', 'hoa.tran@gmail.com')->first();
+        $ownMember = FamilyMember::where('user_id', $member->id)->first();
+        $otherMember = FamilyMember::where('name', 'Nguyễn Mai Anh')->first();
+
+        // 1. Member cannot open create form
+        $this->actingAs($member)->get(route('members.create'))->assertStatus(403);
+
+        // 2. Member cannot store new member
+        $this->actingAs($member)->post(route('members.store'), [
+            'name' => 'Người mới',
+            'relationship' => 'con_cai',
+            'gender' => 'nam',
+        ])->assertStatus(403);
+
+        // 3. Member cannot delete other member
+        $this->actingAs($member)->delete(route('members.destroy', $otherMember))->assertStatus(403);
+
+        // 4. Member CAN edit own profile
+        $this->actingAs($member)->get(route('members.edit', $ownMember))->assertStatus(200);
+
+        // 5. Member CANNOT edit other member's profile
+        $this->actingAs($member)->get(route('members.edit', $otherMember))->assertStatus(403);
+    }
 }

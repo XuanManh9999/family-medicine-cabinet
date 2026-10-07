@@ -127,12 +127,12 @@
                                         {{ $treatmentCourse->familyMember?->name }}
                                     </a>
                                 </h6>
-                                    <div class="d-flex align-items-center gap-2 small mt-1">
-                                        <span class="badge bg-light text-secondary border">{{ $treatmentCourse->familyMember?->relationship_label }}</span>
-                                        <span>{{ $treatmentCourse->familyMember?->age ? $treatmentCourse->familyMember->age . ' tuổi' : '' }}</span>
-                                        <span>• Nhóm máu: <strong>{{ $treatmentCourse->familyMember?->blood_type ?? 'Chưa rõ' }}</strong></span>
-                                    </div>
+                                <div class="d-flex align-items-center gap-2 small mt-1">
+                                    <span class="badge bg-light text-secondary border">{{ $treatmentCourse->familyMember?->relationship_label }}</span>
+                                    <span>{{ $treatmentCourse->familyMember?->age ? $treatmentCourse->familyMember->age . ' tuổi' : '' }}</span>
+                                    <span>• Nhóm máu: <strong>{{ $treatmentCourse->familyMember?->blood_type ?? 'Chưa rõ' }}</strong></span>
                                 </div>
+                            </div>
                         </div>
                     </div>
 

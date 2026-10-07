@@ -103,13 +103,17 @@
 
             <hr class="my-2">
 
-            <!-- Thông tin nhanh Hộ gia đình -->
-            <div class="pt-2">
-                <div class="small fw-bold text-muted mb-1">HỘ GIA ĐÌNH</div>
-                <div class="fw-bold text-primary">{{ $family->name }}</div>
-                <div class="text-muted small" style="font-size: 11.5px;">Mã hộ: <strong>{{ $family->code }}</strong></div>
-                <div class="text-muted small" style="font-size: 11.5px;">Chi tiêu tháng: <strong>{{ number_format($monthlyExpense, 0, ',', '.') }} đ</strong></div>
-            </div>
+                <!-- Thông tin nhanh Hộ gia đình -->
+                <div class="pt-2">
+                    <div class="small fw-bold text-muted mb-1">HỘ GIA ĐÌNH</div>
+                    <div class="fw-bold text-primary">{{ $family->name }}</div>
+                    @if ($user->isFamilyAdmin())
+                        <div class="text-muted small" style="font-size: 11.5px;">Mã hộ: <strong class="text-primary font-monospace">{{ $family->code }}</strong></div>
+                    @else
+                        <div class="text-muted small" style="font-size: 11.5px;">Mã hộ: <strong class="text-secondary font-monospace">••••••</strong> <span class="badge bg-secondary-subtle text-secondary" style="font-size: 9.5px;">Chỉ Chủ hộ xem</span></div>
+                    @endif
+                    <div class="text-muted small" style="font-size: 11.5px;">Chi tiêu tháng: <strong>{{ number_format($monthlyExpense, 0, ',', '.') }} đ</strong></div>
+                </div>
         </div>
     </div>
 

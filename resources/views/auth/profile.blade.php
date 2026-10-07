@@ -146,7 +146,7 @@
                     <span class="text-muted small">({{ $user->role }})</span>
                 </div>
                 <div class="small text-secondary">
-                    @if($user->isSuperAdmin())
+                    @if($user->isSystemAdmin())
                         <div class="alert alert-danger py-2 px-3 mb-0 small">
                             <i class="bi bi-shield-fill-exclamation me-1"></i>
                             <strong>Quản trị viên toàn hệ thống:</strong> Toàn quyền quản lý người dùng, các hộ gia đình và kho Dược thư dùng chung.
@@ -158,7 +158,7 @@
                             <li><i class="bi bi-check-circle-fill text-success me-1"></i> Quản lý lịch uống thuốc, đơn điều trị và chi tiêu tủ thuốc.</li>
                             <li><i class="bi bi-check-circle-fill text-success me-1"></i> Cung cấp mã gia đình để mời thành viên khác vào nhà.</li>
                         </ul>
-                    @elseif($user->isDoctorCaregiver())
+                    @elseif($user->isDoctorOrCaregiver())
                         <ul class="list-unstyled mb-0 d-grid gap-1">
                             <li><i class="bi bi-check-circle-fill text-success me-1"></i> Tạo và quản lý các phác đồ điều trị, đơn thuốc.</li>
                             <li><i class="bi bi-check-circle-fill text-success me-1"></i> Thiết lập và quản lý lịch nhắc uống thuốc cho bệnh nhân.</li>

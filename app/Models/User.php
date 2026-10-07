@@ -71,6 +71,11 @@ class User extends Authenticatable
         return $this->role === 'system_admin';
     }
 
+    public function isSuperAdmin(): bool
+    {
+        return $this->isSystemAdmin();
+    }
+
     public function isFamilyAdmin(): bool
     {
         return $this->role === 'family_admin';
@@ -79,6 +84,11 @@ class User extends Authenticatable
     public function isDoctorOrCaregiver(): bool
     {
         return $this->role === 'doctor_caregiver';
+    }
+
+    public function isDoctorCaregiver(): bool
+    {
+        return $this->isDoctorOrCaregiver();
     }
 
     public function isMember(): bool

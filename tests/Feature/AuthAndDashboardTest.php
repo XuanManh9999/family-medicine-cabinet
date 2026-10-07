@@ -127,6 +127,33 @@ class AuthAndDashboardTest extends TestCase
         $this->assertGuest();
     }
 
+    public function test_all_user_roles_can_view_profile_page(): void
+    {
+        $family = Family::where('code', 'FAM-VN2026')->first();
+
+        // 1. System Admin
+        $systemAdmin = User::where('email', 'admin@medcabinet.vn')->first();
+        $this->actingAs($systemAdmin)->get(route('profile'))->assertStatus(200)->assertSee('Quản trị viên');
+
+        // 2. Family Admin
+        $familyAdmin = User::where('email', 'an.nguyen@gmail.com')->first();
+        $this->actingAs($familyAdmin)->get(route('profile'))->assertStatus(200)->assertSee('Chủ hộ');
+
+        // 3. Member
+        $member = User::where('email', 'hoa.tran@gmail.com')->first();
+        $this->actingAs($member)->get(route('profile'))->assertStatus(200)->assertSee('Thành viên');
+
+        // 4. Doctor / Caregiver
+        $doctor = User::create([
+            'family_id' => $family->id,
+            'name' => 'Bác sĩ Minh',
+            'email' => 'bacsi.minh@gmail.com',
+            'role' => 'doctor_caregiver',
+            'password' => bcrypt('password'),
+        ]);
+        $this->actingAs($doctor)->get(route('profile'))->assertStatus(200)->assertSee('Bác sĩ / Chăm sóc');
+    }
+
     public function test_user_can_update_profile(): void
     {
         $user = User::where('email', 'an.nguyen@gmail.com')->first();

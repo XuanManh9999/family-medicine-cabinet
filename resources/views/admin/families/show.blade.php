@@ -56,8 +56,8 @@
                                 </td>
                                 <td class="small">{{ $u->phone ?: '—' }}</td>
                                 <td>
-                                    <span class="badge {{ $u->isFamilyAdmin() ? 'bg-primary' : 'bg-secondary' }}">
-                                        {{ $u->isFamilyAdmin() ? 'Chủ hộ' : 'Thành viên' }}
+                                    <span class="badge {{ $u->role_badge_class }}">
+                                        {{ $u->role_name }}
                                     </span>
                                 </td>
                             </tr>

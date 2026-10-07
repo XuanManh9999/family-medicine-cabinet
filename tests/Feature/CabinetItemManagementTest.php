@@ -86,4 +86,53 @@ class CabinetItemManagementTest extends TestCase
             'unit' => 'vỉ',
         ]);
     }
+
+    public function test_member_cannot_modify_cabinet_items(): void
+    {
+        $member = User::where('email', 'hoa.tran@gmail.com')->first();
+        $item = CabinetItem::where('family_id', $member->family_id)->first();
+
+        // 1. Cannot open create form
+        $this->actingAs($member)
+            ->get(route('cabinet.items.create'))
+            ->assertStatus(403);
+
+        // 2. Cannot store cabinet item
+        $this->actingAs($member)
+            ->post(route('cabinet.items.store'), [
+                'custom_name' => 'Thuốc tạo trái phép',
+                'quantity' => 10,
+                'unit' => 'viên',
+                'expiry_date' => now()->addYear()->toDateString(),
+            ])
+            ->assertStatus(403);
+
+        if ($item) {
+            // 3. Cannot edit cabinet item
+            $this->actingAs($member)
+                ->get(route('cabinet.items.edit', $item))
+                ->assertStatus(403);
+
+            // 4. Cannot update cabinet item
+            $this->actingAs($member)
+                ->put(route('cabinet.items.update', $item), [
+                    'custom_name' => 'Thuốc sửa trái phép',
+                    'quantity' => 5,
+                    'unit' => 'viên',
+                    'expiry_date' => now()->addYear()->toDateString(),
+                ])
+                ->assertStatus(403);
+
+            // 5. Cannot delete cabinet item
+            $this->actingAs($member)
+                ->delete(route('cabinet.items.destroy', $item))
+                ->assertStatus(403);
+        }
+
+        // 6. Cannot import excel
+        $file = UploadedFile::fake()->createWithContent('test.csv', 'dummy');
+        $this->actingAs($member)
+            ->post(route('cabinet.import-excel'), ['excel_file' => $file])
+            ->assertStatus(403);
+    }
 }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\CabinetRequest;
+use App\Models\RefillRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
 
@@ -36,7 +37,15 @@ class AdminCabinetRequestController extends Controller
         $pendingNoDoctor = CabinetRequest::pending()->whereNotIn('family_id', $familiesWithDoctor)->count();
         $pendingAll = CabinetRequest::pending()->count();
 
+        // Yêu cầu bổ sung thuốc của các hộ chưa có Bác sĩ → Quản trị viên kê tiếp / cho ngưng thay
+        $pendingRefills = RefillRequest::pending()
+            ->whereNotIn('family_id', $familiesWithDoctor)
+            ->with(['family', 'requester', 'prescriptionItem.treatmentCourse'])
+            ->latest()
+            ->get();
+
         return view('admin.cabinet-requests.index', compact(
+            'pendingRefills',
             'requests',
             'status',
             'scope',

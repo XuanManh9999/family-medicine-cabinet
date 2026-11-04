@@ -19,6 +19,38 @@
     </div>
 </div>
 
+@if ($pendingRefills->isNotEmpty())
+    <div class="admin-card mb-3 border-warning">
+        <div class="admin-card-header bg-warning-subtle d-flex justify-content-between align-items-center">
+            <span class="text-warning-emphasis fw-bold"><i class="bi bi-arrow-repeat me-2"></i>Yêu cầu bổ sung thuốc của hộ chưa có Bác sĩ</span>
+            <span class="badge bg-warning text-dark">{{ $pendingRefills->count() }} chờ xử lý</span>
+        </div>
+        <div class="admin-card-body p-0">
+            @foreach ($pendingRefills as $refill)
+                <div class="p-3 {{ !$loop->last ? 'border-bottom' : '' }}">
+                    <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
+                        <div>
+                            <div class="fw-bold">{{ $refill->medicine_name }}
+                                <span class="text-muted fw-normal small">· {{ $refill->family?->name }}</span>
+                            </div>
+                            <div class="text-muted small">
+                                {{ $refill->source === 'schedule' ? 'Thuốc đang uống' : 'Thuốc trong tủ' }}
+                                @if ($refill->prescriptionItem?->treatmentCourse) · Đơn: {{ $refill->prescriptionItem->treatmentCourse->title }} @endif
+                                · còn {{ rtrim(rtrim((string) $refill->current_stock, '0'), '.') }} {{ $refill->unit }}
+                                · {{ $refill->requester?->name }}, {{ $refill->created_at->format('H:i d/m/Y') }}
+                            </div>
+                            @if ($refill->requester_note)
+                                <div class="small mt-1"><i class="bi bi-chat-left-quote me-1"></i>{{ $refill->requester_note }}</div>
+                            @endif
+                        </div>
+                    </div>
+                    @include('cabinet-supply.partials.refill-decision', ['refill' => $refill])
+                </div>
+            @endforeach
+        </div>
+    </div>
+@endif
+
 <div class="admin-card mb-3">
     <div class="admin-card-body p-2 d-flex flex-wrap gap-2 align-items-center">
         <div class="btn-group btn-group-sm">

@@ -124,6 +124,13 @@ class AlertScannerService
             $stats['alerts_resolved']++;
         }
 
+        // THUỐC ĐANG UỐNG THEO LỊCH SẮP HẾT (tính theo liều mỗi ngày, không chỉ theo số lượng tồn)
+        try {
+            $stats['refill_needed_count'] = app(MedicationSupplyService::class)->syncAlerts($family);
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
         return $stats;
     }
 

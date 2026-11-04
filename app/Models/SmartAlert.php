@@ -103,6 +103,8 @@ class SmartAlert extends Model
             'schedule_reminder' => 'Nhắc nhở uống thuốc',
             'missed_dose' => 'Quá giờ chưa uống thuốc',
             'cabinet_request' => 'Đề nghị nhập thuốc',
+            'refill_needed' => 'Thuốc đang uống sắp hết',
+            'refill_request' => 'Yêu cầu bổ sung thuốc',
             'drug_interaction' => 'Tương tác thuốc nguy hiểm',
             default => 'Cảnh báo y tế',
         };
@@ -118,6 +120,8 @@ class SmartAlert extends Model
             'schedule_reminder' => 'bi-alarm text-info',
             'missed_dose' => 'bi-alarm-fill text-warning',
             'cabinet_request' => 'bi-inbox text-primary',
+            'refill_needed' => 'bi-hourglass-bottom text-warning',
+            'refill_request' => 'bi-arrow-repeat text-primary',
             'drug_interaction' => 'bi-capsule-pill text-danger',
             default => 'bi-bell text-secondary',
         };

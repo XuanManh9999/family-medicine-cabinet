@@ -43,6 +43,45 @@ class PrescriptionItem extends Model
         return $this->hasMany(MedicationSchedule::class);
     }
 
+    /** Các lô thuốc gia đình đã mua về theo thuốc này trong đơn */
+    public function cabinetItems()
+    {
+        return $this->hasMany(CabinetItem::class);
+    }
+
+    /**
+     * Tổng số lượng đã mua theo đơn (theo số lượng lúc nhập tủ, không trừ phần đã uống)
+     */
+    public function getPurchasedQuantityAttribute(): float
+    {
+        $items = $this->relationLoaded('cabinetItems') ? $this->cabinetItems : $this->cabinetItems()->get();
+
+        return (float) $items->sum(fn (CabinetItem $item) => (float) ($item->purchased_quantity ?? $item->quantity));
+    }
+
+    /**
+     * Số lượng còn phải mua theo đơn; null khi bác sĩ không ghi tổng số lượng kê
+     */
+    public function getRemainingToBuyAttribute(): ?float
+    {
+        $prescribed = (float) $this->total_prescribed_quantity;
+        if ($prescribed <= 0) {
+            return null;
+        }
+
+        return max(0, round($prescribed - $this->purchased_quantity, 2));
+    }
+
+    /**
+     * Cần mua: còn thiếu so với số lượng kê, hoặc đơn không ghi số lượng và chưa mua lần nào
+     */
+    public function getNeedsPurchaseAttribute(): bool
+    {
+        $remaining = $this->remaining_to_buy;
+
+        return $remaining === null ? $this->purchased_quantity <= 0 : $remaining > 0;
+    }
+
     /**
      * Thời điểm uống so với bữa ăn: ưu tiên cột trên thuốc, dữ liệu cũ thì lấy theo lịch uống đầu tiên
      */

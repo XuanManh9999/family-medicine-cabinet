@@ -125,6 +125,8 @@
                     <option value="schedule_reminder" @selected($type === 'schedule_reminder')>Nhắc nhở tuân thủ lịch uống</option>
                     <option value="missed_dose" @selected($type === 'missed_dose')>Quá giờ chưa uống thuốc</option>
                     <option value="cabinet_request" @selected($type === 'cabinet_request')>Đề nghị nhập thuốc</option>
+                    <option value="refill_needed" @selected($type === 'refill_needed')>Thuốc đang uống sắp hết</option>
+                    <option value="refill_request" @selected($type === 'refill_request')>Yêu cầu bổ sung thuốc</option>
                 </select>
             </div>
 

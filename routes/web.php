@@ -69,6 +69,19 @@ Route::middleware('auth')->group(function () {
     Route::patch('/cabinet/items/{cabinetItem}/quantity', [CabinetItemController::class, 'updateQuantity'])->name('cabinet.items.quantity');
     Route::delete('/cabinet/items/{cabinetItem}', [CabinetItemController::class, 'destroy'])->name('cabinet.items.destroy');
 
+    // Cần mua & bổ sung: mua theo đơn Bác sĩ, thuốc đang uống sắp hết, yêu cầu bổ sung
+    Route::get('/cabinet/supply', [\App\Http\Controllers\CabinetSupplyController::class, 'index'])->name('cabinet.supply');
+    Route::get('/cabinet/purchases/prescription/{prescriptionItem}', [\App\Http\Controllers\CabinetPurchaseController::class, 'createForPrescription'])->name('cabinet.purchases.prescription.create');
+    Route::post('/cabinet/purchases/prescription/{prescriptionItem}', [\App\Http\Controllers\CabinetPurchaseController::class, 'storeForPrescription'])->name('cabinet.purchases.prescription.store');
+    Route::post('/cabinet/purchases/prescription/{prescriptionItem}/link', [\App\Http\Controllers\CabinetPurchaseController::class, 'linkExisting'])->name('cabinet.purchases.prescription.link');
+    Route::get('/cabinet/purchases/refill/{refillRequest}', [\App\Http\Controllers\CabinetPurchaseController::class, 'createForRefill'])->name('cabinet.purchases.refill.create');
+    Route::post('/cabinet/purchases/refill/{refillRequest}', [\App\Http\Controllers\CabinetPurchaseController::class, 'storeForRefill'])->name('cabinet.purchases.refill.store');
+    Route::post('/cabinet/refills', [\App\Http\Controllers\RefillRequestController::class, 'store'])->name('cabinet.refills.store');
+    Route::post('/cabinet/refills/{refillRequest}/approve', [\App\Http\Controllers\RefillRequestController::class, 'approve'])->name('cabinet.refills.approve');
+    Route::post('/cabinet/refills/{refillRequest}/stop', [\App\Http\Controllers\RefillRequestController::class, 'stop'])->name('cabinet.refills.stop');
+    Route::post('/cabinet/refills/{refillRequest}/reject', [\App\Http\Controllers\RefillRequestController::class, 'reject'])->name('cabinet.refills.reject');
+    Route::post('/cabinet/refills/{refillRequest}/cancel', [\App\Http\Controllers\RefillRequestController::class, 'cancel'])->name('cabinet.refills.cancel');
+
     // Đề nghị nhập thuốc: Chủ hộ / Thành viên gửi, Bác sĩ duyệt
     Route::get('/cabinet/requests', [\App\Http\Controllers\CabinetRequestController::class, 'index'])->name('cabinet.requests.index');
     Route::get('/cabinet/requests/create', [\App\Http\Controllers\CabinetRequestController::class, 'create'])->name('cabinet.requests.create');

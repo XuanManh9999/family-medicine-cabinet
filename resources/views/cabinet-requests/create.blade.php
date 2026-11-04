@@ -13,9 +13,13 @@
     <a href="{{ route('cabinet.requests.index') }}" class="text-decoration-none text-muted small d-inline-flex align-items-center mb-1">
         <i class="bi bi-arrow-left me-1"></i> Quay lại danh sách đề nghị
     </a>
-    <h1 class="h4 fw-bold text-dark mb-1"><i class="bi bi-cart-plus text-success me-1"></i>Đề nghị nhập thuốc vừa mua</h1>
+    <h1 class="h4 fw-bold text-dark mb-1"><i class="bi bi-bag-plus text-success me-1"></i>Thuốc tự mua ngoài đơn</h1>
     <div class="text-muted small">
-        Bạn chỉ cần <strong>chụp ảnh vỏ hộp</strong> và nhập vài thông tin in trên vỏ. Phần chuyên môn (hoạt chất, kiểm tra dị ứng, dặn dò) do Bác sĩ phụ trách.
+        Dành cho thuốc gia đình <strong>tự mua không theo đơn</strong> (hạ sốt, vitamin, băng gạc...). Bạn chỉ cần <strong>chụp ảnh vỏ hộp</strong> và nhập vài thông tin in trên vỏ, Bác sĩ sẽ kiểm tra trước khi cho vào tủ.
+    </div>
+    <div class="alert alert-info py-2 px-3 small mt-2 mb-0">
+        <i class="bi bi-file-earmark-medical me-1"></i>Mua thuốc <strong>theo đơn Bác sĩ đã kê</strong>? Không cần đề nghị — vào
+        <a href="{{ route('cabinet.supply') }}" class="alert-link">Cần mua & bổ sung</a> và bấm <strong>"Đã mua"</strong> ở thuốc đó.
     </div>
 </div>
 

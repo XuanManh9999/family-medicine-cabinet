@@ -14,11 +14,13 @@ class CabinetItem extends Model
     protected $fillable = [
         'family_id',
         'medicine_id',
+        'prescription_item_id',
         'custom_name',
         'batch_number',
         'manufacturing_date',
         'expiry_date',
         'quantity',
+        'purchased_quantity',
         'unit',
         'storage_location',
         'price_per_unit',
@@ -32,6 +34,7 @@ class CabinetItem extends Model
             'manufacturing_date' => 'date',
             'expiry_date' => 'date',
             'quantity' => 'decimal:2',
+            'purchased_quantity' => 'decimal:2',
             'price_per_unit' => 'decimal:2',
         ];
     }
@@ -52,6 +55,12 @@ class CabinetItem extends Model
     public function smartAlerts()
     {
         return $this->hasMany(SmartAlert::class);
+    }
+
+    /** Thuốc trong đơn mà lô này được mua theo (nếu mua theo đơn bác sĩ) */
+    public function prescriptionItem()
+    {
+        return $this->belongsTo(PrescriptionItem::class);
     }
 
     public function medicine()

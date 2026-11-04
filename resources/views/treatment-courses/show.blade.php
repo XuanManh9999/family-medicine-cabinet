@@ -299,7 +299,15 @@
                                     @endif
                                 </td>
                                 <td>
-                                    <strong>{{ floatval($item->total_prescribed_quantity) }}</strong> {{ $item->unit }}
+                                    <strong>{{ floatval($item->total_prescribed_quantity) ?: '—' }}</strong> {{ floatval($item->total_prescribed_quantity) ? $item->unit : '' }}
+                                    {{-- Theo dõi gia đình đã mua thuốc theo đơn chưa --}}
+                                    <div class="small text-muted">Đã mua: {{ floatval($item->purchased_quantity) }} {{ $item->unit }}</div>
+                                    @if ($treatmentCourse->status === 'dang_dieu_tri' && $item->needs_purchase)
+                                        <a href="{{ route('cabinet.purchases.prescription.create', ['prescriptionItem' => $item, 'return' => route('treatment-courses.show', $treatmentCourse, false)]) }}"
+                                           class="btn btn-xs btn-outline-success py-0 px-2 mt-1" style="font-size: 11.5px;">
+                                            <i class="bi bi-bag-check me-1"></i>Đã mua
+                                        </a>
+                                    @endif
                                 </td>
                                 <td>
                                     <span class="badge bg-light text-dark border small">

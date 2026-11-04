@@ -39,30 +39,33 @@
             </button>
         @endif
 
-        @if(count($shoppingItems) > 0)
-            <button type="button" class="btn btn-outline-warning btn-sm text-dark position-relative" data-bs-toggle="modal" data-bs-target="#shoppingListModal">
-                <i class="bi bi-cart-plus me-1"></i> Cần mua bổ sung
-                <span class="badge bg-danger rounded-pill ms-1">{{ count($shoppingItems) }}</span>
-            </button>
-        @endif
-
         @php
-            $pendingRequestCount = \App\Models\CabinetRequest::where('family_id', auth()->user()->family_id)->pending()->count();
+            $familyId = auth()->user()->family_id;
+            $pendingRequestCount = \App\Models\CabinetRequest::where('family_id', $familyId)->pending()->count();
+            $toBuyCount = $familyId ? app(\App\Services\MedicationSupplyService::class)->purchaseList(auth()->user()->family)->count()
+                + \App\Models\RefillRequest::where('family_id', $familyId)->awaitingPurchase()->count() : 0;
+            $refillPendingCount = \App\Models\RefillRequest::where('family_id', $familyId)->pending()->count();
+            $supplyBadge = $toBuyCount + $refillPendingCount + count($shoppingItems);
         @endphp
-        <a href="{{ route('cabinet.requests.index') }}" class="btn btn-outline-primary btn-sm position-relative">
-            <i class="bi bi-inbox me-1"></i> Đề nghị nhập thuốc
+
+        <!-- Luồng chính: mua theo đơn / sắp hết thì yêu cầu bổ sung -->
+        <a href="{{ route('cabinet.supply') }}" class="btn btn-erp-primary btn-sm position-relative">
+            <i class="bi bi-cart-check me-1"></i> Cần mua & bổ sung
+            @if ($supplyBadge > 0)
+                <span class="badge bg-warning text-dark rounded-pill ms-1">{{ $supplyBadge }}</span>
+            @endif
+        </a>
+
+        <a href="{{ route('cabinet.requests.index') }}" class="btn btn-outline-secondary btn-sm position-relative" title="Thuốc gia đình tự mua, không có trong đơn Bác sĩ">
+            <i class="bi bi-bag-plus me-1"></i> Thuốc tự mua ngoài đơn
             @if ($pendingRequestCount > 0)
                 <span class="badge bg-warning text-dark rounded-pill ms-1">{{ $pendingRequestCount }}</span>
             @endif
         </a>
 
         @if (auth()->user()->canManageCabinet())
-            <a href="{{ route('cabinet.items.create') }}" class="btn btn-erp-primary btn-sm">
+            <a href="{{ route('cabinet.items.create') }}" class="btn btn-outline-primary btn-sm">
                 <i class="bi bi-plus-lg me-1"></i> Thêm thuốc vào tủ
-            </a>
-        @elseif (auth()->user()->canRequestCabinetItems())
-            <a href="{{ route('cabinet.requests.create') }}" class="btn btn-erp-primary btn-sm">
-                <i class="bi bi-cart-plus me-1"></i> Đề nghị nhập thuốc mới mua
             </a>
         @endif
     </div>

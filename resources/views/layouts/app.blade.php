@@ -402,16 +402,21 @@
 
                 <li class="main-nav-item">
                     @php
-                        // Bác sĩ thấy ngay số đề nghị nhập thuốc đang chờ duyệt
-                        $navPendingRequests = ($authUser && $authUser->family_id && $authUser->canManageCabinet())
-                            ? \App\Models\CabinetRequest::where('family_id', $authUser->family_id)->pending()->count()
-                            : 0;
+                        // Bác sĩ thấy ngay số việc đang chờ mình: yêu cầu bổ sung + đề nghị nhập thuốc ngoài đơn
+                        $isCabinetReviewer = $authUser && $authUser->family_id && $authUser->canManageCabinet();
+                        $navPendingRefills = $isCabinetReviewer ? \App\Models\RefillRequest::where('family_id', $authUser->family_id)->pending()->count() : 0;
+                        $navPendingRequests = $isCabinetReviewer ? \App\Models\CabinetRequest::where('family_id', $authUser->family_id)->pending()->count() : 0;
+                        $navCabinetUrl = match (true) {
+                            $navPendingRefills > 0 => route('cabinet.supply') . '#refill-section',
+                            $navPendingRequests > 0 => route('cabinet.requests.index', ['status' => 'pending']),
+                            default => route('cabinet.index'),
+                        };
                     @endphp
-                    <a href="{{ $navPendingRequests > 0 ? route('cabinet.requests.index', ['status' => 'pending']) : route('cabinet.index') }}" class="main-nav-link {{ request()->routeIs('cabinet.*') ? 'active' : '' }}">
+                    <a href="{{ $navCabinetUrl }}" class="main-nav-link {{ request()->routeIs('cabinet.*') ? 'active' : '' }}">
                         <i class="bi bi-prescription2"></i>
                         <span>Tủ thuốc</span>
-                        @if ($navPendingRequests > 0)
-                            <span class="badge bg-warning text-dark rounded-pill" style="font-size: 10px;" title="Đề nghị nhập thuốc chờ duyệt">{{ $navPendingRequests }}</span>
+                        @if ($navPendingRefills + $navPendingRequests > 0)
+                            <span class="badge bg-warning text-dark rounded-pill" style="font-size: 10px;" title="Yêu cầu bổ sung & đề nghị nhập thuốc chờ xử lý">{{ $navPendingRefills + $navPendingRequests }}</span>
                         @endif
                     </a>
                 </li>

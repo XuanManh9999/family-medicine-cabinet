@@ -78,7 +78,19 @@ class DashboardController extends Controller
             ->thisMonth()
             ->sum('amount');
 
+        // 7. Việc cần mua: thuốc Bác sĩ đã kê chưa mua, thuốc đang uống sắp hết, yêu cầu bổ sung chờ Bác sĩ
+        $supply = app(\App\Services\MedicationSupplyService::class);
+        $supplySummary = [
+            'to_buy' => $supply->purchaseList($family)->count()
+                + \App\Models\RefillRequest::where('family_id', $family->id)->awaitingPurchase()->count(),
+            'running_low' => $supply->forFamily($family)
+                ->filter(fn (array $row) => in_array($row['status'], ['out', 'low'], true) && !$row['awaiting_purchase'] && !$row['refill'])
+                ->count(),
+            'pending_refills' => \App\Models\RefillRequest::where('family_id', $family->id)->pending()->count(),
+        ];
+
         return view('dashboard.index', compact(
+            'supplySummary',
             'family',
             'user',
             'totalItems',

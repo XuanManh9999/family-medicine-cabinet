@@ -148,7 +148,7 @@ class CabinetRequestFlowTest extends TestCase
         $medicine = Medicine::firstOrFail();
 
         $this->actingAs($this->familyAdmin)->get(route('cabinet.index'))
-            ->assertOk()->assertSee(route('cabinet.requests.create'), false);
+            ->assertOk()->assertSee(route('cabinet.supply'), false)->assertSee(route('cabinet.requests.index'), false);
         $this->actingAs($this->familyAdmin)->get(route('medicines.index'))
             ->assertOk()->assertSee(route('cabinet.requests.create', ['medicine_id' => $medicine->id]), false);
 

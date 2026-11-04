@@ -215,6 +215,7 @@ class TreatmentCourseController extends Controller
             'familyMember',
             'prescriptionItems.medicine',
             'prescriptionItems.schedules.logs',
+            'prescriptionItems.cabinetItems',
             'expenses',
         ]);
 

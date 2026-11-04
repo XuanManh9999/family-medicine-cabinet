@@ -119,6 +119,23 @@
 
     <!-- KHU VỰC DỮ LIỆU CHÍNH BÊN PHẢI (Bảng dữ liệu chuẩn quản lý) -->
     <div class="col-12 col-lg-9 col-xl-10">
+        <!-- Nhắc việc cần mua / bổ sung thuốc -->
+        @if (array_sum($supplySummary) > 0)
+            <div class="alert alert-warning py-2 px-3 mb-3 small d-flex flex-wrap align-items-center gap-3">
+                <i class="bi bi-cart-check fs-5"></i>
+                @if ($supplySummary['to_buy'] > 0)
+                    <span><strong>{{ $supplySummary['to_buy'] }}</strong> thuốc Bác sĩ đã kê cần mua</span>
+                @endif
+                @if ($supplySummary['running_low'] > 0)
+                    <span><strong>{{ $supplySummary['running_low'] }}</strong> thuốc đang uống sắp hết</span>
+                @endif
+                @if ($supplySummary['pending_refills'] > 0)
+                    <span><strong>{{ $supplySummary['pending_refills'] }}</strong> yêu cầu bổ sung chờ Bác sĩ</span>
+                @endif
+                <a href="{{ route('cabinet.supply') }}" class="btn btn-sm btn-warning ms-md-auto">Xem Cần mua & bổ sung</a>
+            </div>
+        @endif
+
         <!-- Action Toolbar -->
         <div class="content-card mb-3">
             <div class="d-flex align-items-center justify-content-between p-2 flex-wrap gap-2">

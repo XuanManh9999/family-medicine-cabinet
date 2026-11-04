@@ -8,6 +8,7 @@ use App\Models\FamilyMember;
 use App\Models\MedicationLog;
 use App\Models\MedicationSchedule;
 use App\Models\Medicine;
+use App\Services\CabinetStockMatcher;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -448,57 +449,16 @@ class MedicationScheduleController extends Controller
     }
 
     /**
-     * Các lô thuốc phù hợp để trừ, đã sắp theo độ ưu tiên: đúng mã thuốc > trùng tên > tên gần đúng, rồi hạn dùng gần nhất
+     * Các lô thuốc phù hợp để trừ, đã sắp theo độ ưu tiên: lô mua theo đúng đơn > đúng mã thuốc > trùng tên > tên gần đúng, rồi hạn dùng gần nhất
      */
     protected function findCabinetCandidates(MedicationSchedule $schedule, int $familyId)
     {
-        $medicineId = $schedule->prescriptionItem?->medicine_id;
-        $target = $this->normalizeName($schedule->medicine_name);
-
-        $items = CabinetItem::where('family_id', $familyId)
-            ->where('quantity', '>', 0)
-            ->whereDate('expiry_date', '>=', Carbon::today()->toDateString())
-            ->with('medicine')
-            ->orderBy('expiry_date')
-            ->orderBy('id')
-            ->get();
-
-        $ranked = [];
-        foreach ($items as $position => $item) {
-            $rank = null;
-            if ($medicineId && (int) $item->medicine_id === (int) $medicineId) {
-                $rank = 0;
-            } else {
-                $names = array_values(array_filter([
-                    $this->normalizeName($item->custom_name),
-                    $this->normalizeName($item->medicine?->name),
-                ]));
-
-                foreach ($names as $name) {
-                    if ($target !== '' && $name === $target) {
-                        $rank = 1;
-                        break;
-                    }
-                }
-
-                if ($rank === null && mb_strlen($target) >= 3) {
-                    foreach ($names as $name) {
-                        if (mb_strlen($name) >= 3 && (str_contains($name, $target) || str_contains($target, $name))) {
-                            $rank = 2;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            if ($rank !== null) {
-                $ranked[] = ['rank' => $rank, 'position' => $position, 'item' => $item];
-            }
-        }
-
-        usort($ranked, fn ($a, $b) => [$a['rank'], $a['position']] <=> [$b['rank'], $b['position']]);
-
-        return collect($ranked)->pluck('item')->values();
+        return app(CabinetStockMatcher::class)->candidates(
+            $familyId,
+            $schedule->prescription_item_id,
+            $schedule->prescriptionItem?->medicine_id,
+            $schedule->medicine_name
+        );
     }
 
     /**
@@ -506,23 +466,12 @@ class MedicationScheduleController extends Controller
      */
     protected function unitsCompatible(?string $cabinetUnit, ?string $doseUnit, ?string $doseText): bool
     {
-        $cab = $this->normalizeName($cabinetUnit);
-        $unit = $this->normalizeName($doseUnit);
-        $text = $this->normalizeName($doseText);
-
-        if ($cab === '' || ($unit === '' && $text === '')) {
-            return true;
-        }
-        if ($unit !== '' && ($cab === $unit || str_contains($cab, $unit) || str_contains($unit, $cab))) {
-            return true;
-        }
-
-        return $text !== '' && str_contains($text, $cab);
+        return app(CabinetStockMatcher::class)->unitsCompatible($cabinetUnit, $doseUnit, $doseText);
     }
 
     protected function normalizeName(?string $value): string
     {
-        return trim(preg_replace('/\s+/u', ' ', mb_strtolower((string) $value)));
+        return app(CabinetStockMatcher::class)->normalizeName($value);
     }
 
     protected function formatQty(float|int|string|null $qty): string

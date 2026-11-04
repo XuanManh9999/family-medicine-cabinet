@@ -257,7 +257,7 @@
                     </a>
 
                     <div class="d-flex gap-1">
-                        @if (auth()->user()->canEditMember($m))
+                        @if (auth()->user()->canEditMedicalInfo($m))
                             <a href="{{ route('members.edit', $m) }}" class="btn btn-sm btn-outline-secondary py-1 px-2 d-inline-flex align-items-center gap-1" title="Chỉnh sửa hồ sơ" style="font-size: 12px;">
                                 <i class="bi bi-pencil"></i>
                                 @if (!auth()->user()->canManageMembers() && (int)$m->user_id === (int)auth()->id())

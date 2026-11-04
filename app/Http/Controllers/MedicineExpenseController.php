@@ -350,16 +350,16 @@ class MedicineExpenseController extends Controller
     }
 
     /**
-     * Quyền thêm / sửa khoản chi: Chủ hộ, Bác sĩ/Người chăm sóc, Quản trị viên hệ thống (thành viên chỉ được xem)
+     * Sổ chi tiêu là việc của Chủ hộ: chỉ Chủ hộ (và Quản trị viên) thêm / sửa; Bác sĩ, Thành viên chỉ xem
      */
     private function canManageExpenses($user): bool
     {
-        return $user && ($user->isFamilyAdmin() || $user->isDoctorOrCaregiver() || $user->isSystemAdmin());
+        return $user && ($user->isFamilyAdmin() || $user->isSystemAdmin());
     }
 
     private function ensureCanManageExpenses(Request $request): void
     {
-        abort_unless($this->canManageExpenses($request->user()), 403, 'Chỉ Chủ hộ, Bác sĩ/Người chăm sóc y tế hoặc Quản trị viên hệ thống mới có quyền thêm hoặc chỉnh sửa khoản chi phí y tế.');
+        abort_unless($this->canManageExpenses($request->user()), 403, 'Chỉ Chủ hộ hoặc Quản trị viên hệ thống mới có quyền thêm hoặc chỉnh sửa khoản chi phí y tế.');
     }
 
     /**

@@ -276,7 +276,8 @@ class CabinetPurchaseController extends Controller
     {
         $user = $request->user();
 
-        return $user->isFamilyAdmin() || $user->isDoctorOrCaregiver() || $user->isSystemAdmin();
+        // Ghi chi phí vào sổ chi tiêu chỉ dành cho Chủ hộ (người quản lý sổ chi tiêu gia đình)
+        return $user->isFamilyAdmin() || $user->isSystemAdmin();
     }
 
     private function authorizePrescriptionItem(Request $request, PrescriptionItem $prescriptionItem): Family

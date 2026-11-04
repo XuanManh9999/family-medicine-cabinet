@@ -262,8 +262,19 @@
                         $adminPendingRequests = \App\Models\CabinetRequest::pending()->whereNotIn('family_id', $familiesWithDoctorQuery)->count()
                             + \App\Models\RefillRequest::pending()->whereNotIn('family_id', $familiesWithDoctorQuery)->count()
                             + \App\Models\CabinetItem::withAnyApproval()->where('approval_status', \App\Models\CabinetItem::APPROVAL_PENDING)
-                                ->whereNotIn('family_id', $familiesWithDoctorQuery)->count();
+                                ->where(fn ($q) => $q->whereNotIn('family_id', $familiesWithDoctorQuery)
+                                    ->orWhereIn('purchased_by', \App\Models\User::where('role', 'doctor_caregiver')->select('id')))->count();
                     @endphp
+                    @php $adminPendingDoctorRequests = \App\Models\DoctorRoleRequest::pending()->count(); @endphp
+                    <a href="{{ route('admin.doctor-requests.index') }}" class="admin-nav-link {{ request()->routeIs('admin.doctor-requests.*') ? 'active' : '' }}">
+                        <i class="bi bi-person-badge"></i>
+                        <span>Duyệt Bác sĩ</span>
+                        @if ($adminPendingDoctorRequests > 0)
+                            <span class="badge bg-warning text-dark rounded-pill" style="font-size: 10px;">{{ $adminPendingDoctorRequests }}</span>
+                        @endif
+                    </a>
+                </li>
+                <li>
                     <a href="{{ route('admin.cabinet-requests.index') }}" class="admin-nav-link {{ request()->routeIs('admin.cabinet-requests.*') ? 'active' : '' }}">
                         <i class="bi bi-inbox"></i>
                         <span>Đề nghị nhập thuốc</span>

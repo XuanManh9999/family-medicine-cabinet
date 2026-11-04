@@ -183,7 +183,7 @@ class DoctorLotApprovalTest extends TestCase
 
         $admin = User::where('email', 'admin@medcabinet.vn')->firstOrFail();
         $this->actingAs($admin)->get(route('admin.cabinet-requests.index'))
-            ->assertOk()->assertSee('Thuốc đã mua chờ xác nhận (hộ chưa có Bác sĩ)')->assertSee('Bisoprolol 2.5mg');
+            ->assertOk()->assertSee('Thuốc đã mua chờ xác nhận (hộ chưa có Bác sĩ / do Bác sĩ tự mua)')->assertSee('Bisoprolol 2.5mg');
         $this->actingAs($admin)->post(route('cabinet.lots.confirm', $lot->id))->assertRedirect(route('admin.cabinet-requests.index'));
         $this->assertSame(CabinetItem::APPROVAL_APPROVED, $lot->fresh()->approval_status);
 

@@ -46,7 +46,8 @@ class AdminCabinetRequestController extends Controller
 
         $pendingLots = \App\Models\CabinetItem::withAnyApproval()
             ->where('approval_status', \App\Models\CabinetItem::APPROVAL_PENDING)
-            ->whereNotIn('family_id', $familiesWithDoctor)
+            ->where(fn ($q) => $q->whereNotIn('family_id', $familiesWithDoctor)
+                ->orWhereIn('purchased_by', User::where('role', 'doctor_caregiver')->select('id')))
             ->with(['family', 'purchaser', 'prescriptionItem.treatmentCourse.familyMember'])
             ->oldest()
             ->get();

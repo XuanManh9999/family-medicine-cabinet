@@ -54,6 +54,8 @@ Route::middleware('auth')->group(function () {
     // Chủ hộ quản lý tài khoản trong gia đình (chỉ định Bác sĩ, gỡ tài khoản, tạo lại mã mời)
     Route::patch('/family/users/{user}/role', [\App\Http\Controllers\FamilyAccountController::class, 'updateRole'])->name('family.users.role');
     Route::delete('/family/users/{user}', [\App\Http\Controllers\FamilyAccountController::class, 'remove'])->name('family.users.remove');
+    Route::post('/family/users/{user}/doctor-request', [\App\Http\Controllers\FamilyAccountController::class, 'requestDoctor'])->name('family.users.doctor-request');
+    Route::post('/family/doctor-requests/{doctorRoleRequest}/cancel', [\App\Http\Controllers\FamilyAccountController::class, 'cancelDoctorRequest'])->name('family.doctor-requests.cancel');
     Route::post('/family/regenerate-code', [\App\Http\Controllers\FamilyAccountController::class, 'regenerateCode'])->name('family.regenerate-code');
 
     // Tủ thuốc gia đình
@@ -142,6 +144,9 @@ Route::middleware(['auth', 'system_admin'])->prefix('admin')->name('admin.')->gr
     Route::get('/families/{family}', [\App\Http\Controllers\Admin\AdminFamilyController::class, 'show'])->name('families.show');
     Route::get('/users', [\App\Http\Controllers\Admin\AdminUserController::class, 'index'])->name('users.index');
     Route::get('/cabinet-requests', [\App\Http\Controllers\Admin\AdminCabinetRequestController::class, 'index'])->name('cabinet-requests.index');
+    Route::get('/doctor-requests', [\App\Http\Controllers\Admin\AdminDoctorRequestController::class, 'index'])->name('doctor-requests.index');
+    Route::post('/doctor-requests/{doctorRoleRequest}/approve', [\App\Http\Controllers\Admin\AdminDoctorRequestController::class, 'approve'])->name('doctor-requests.approve');
+    Route::post('/doctor-requests/{doctorRoleRequest}/reject', [\App\Http\Controllers\Admin\AdminDoctorRequestController::class, 'reject'])->name('doctor-requests.reject');
     Route::patch('/users/{user}/role', [\App\Http\Controllers\Admin\AdminUserController::class, 'updateRole'])->name('users.role');
     Route::patch('/users/{user}/reset-password', [\App\Http\Controllers\Admin\AdminUserController::class, 'resetPassword'])->name('users.reset-password');
 });

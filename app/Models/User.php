@@ -141,6 +141,19 @@ class User extends Authenticatable
     }
 
     /**
+     * Quyền cập nhật THÔNG TIN Y TẾ (dị ứng, bệnh nền, nhóm máu) của một thành viên:
+     * người sửa được cả hồ sơ, hoặc Bác sĩ / Người chăm sóc của cùng gia đình
+     */
+    public function canEditMedicalInfo(?FamilyMember $member): bool
+    {
+        if ($this->canEditMember($member)) {
+            return true;
+        }
+
+        return $member !== null && $this->isDoctorOrCaregiver() && (int) $member->family_id === (int) $this->family_id;
+    }
+
+    /**
      * Quyền kê đơn / lập phác đồ điều trị (Bác sĩ hoặc Quản trị viên hệ thống)
      */
     public function canManageTreatments(): bool

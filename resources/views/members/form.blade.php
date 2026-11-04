@@ -19,6 +19,16 @@
     </div>
 </div>
 
+@php
+    // Bác sĩ (không phải Chủ hộ / chính chủ) chỉ cập nhật thông tin y tế
+    $medicalOnly = $editing && !auth()->user()->canEditMember($member);
+@endphp
+@if ($medicalOnly)
+    <div class="alert alert-info py-2 px-3 small">
+        <i class="bi bi-heart-pulse me-1"></i>Bạn đang cập nhật với vai trò <strong>Bác sĩ / Người chăm sóc</strong>: chỉ sửa được nhóm máu, tiền sử dị ứng và bệnh nền. Thông tin cá nhân do Chủ hộ quản lý.
+    </div>
+@endif
+
 <div class="row g-3">
     <!-- CỘT TRÁI: FORM NHẬP HỒ SƠ Y TẾ (8 CỘT) -->
     <div class="col-12 col-lg-8">
@@ -40,7 +50,7 @@
                             <label for="name" class="form-label fw-semibold text-dark mb-1">
                                 Họ và tên người thân <span class="text-danger">*</span>
                             </label>
-                            <input id="name" name="name" required maxlength="255"
+                            <input id="name" name="name" required maxlength="255" @disabled($medicalOnly)
                                    value="{{ old('name', $member->name) }}"
                                    class="form-control @error('name') is-invalid @enderror"
                                    placeholder="Ví dụ: Nguyễn Văn Thịnh">
@@ -51,7 +61,7 @@
                             <label for="relationship" class="form-label fw-semibold text-dark mb-1">
                                 Mối quan hệ trong nhà <span class="text-danger">*</span>
                             </label>
-                            <select id="relationship" name="relationship" required class="form-select @error('relationship') is-invalid @enderror">
+                            <select id="relationship" name="relationship" required @disabled($medicalOnly) class="form-select @error('relationship') is-invalid @enderror">
                                 <option value="">-- Chọn mối quan hệ --</option>
                                 <option value="ong_ba" @selected(old('relationship', $member->relationship) === 'ong_ba')>Ông / Bà</option>
                                 <option value="bo_me" @selected(old('relationship', $member->relationship) === 'bo_me')>Bố / Mẹ</option>
@@ -65,7 +75,7 @@
 
                         <div class="col-12 col-md-4">
                             <label for="dob" class="form-label fw-semibold text-dark mb-1">Ngày tháng năm sinh</label>
-                            <input id="dob" name="dob" type="date" max="{{ today()->format('Y-m-d') }}"
+                            <input id="dob" name="dob" type="date" @disabled($medicalOnly) max="{{ today()->format('Y-m-d') }}"
                                    value="{{ old('dob', $member->dob?->format('Y-m-d')) }}"
                                    class="form-control @error('dob') is-invalid @enderror">
                             @error('dob')<div class="invalid-feedback">{{ $message }}</div>@enderror
@@ -74,7 +84,7 @@
 
                         <div class="col-6 col-md-4">
                             <label for="gender" class="form-label fw-semibold text-dark mb-1">Giới tính <span class="text-danger">*</span></label>
-                            <select id="gender" name="gender" required class="form-select @error('gender') is-invalid @enderror">
+                            <select id="gender" name="gender" required @disabled($medicalOnly) class="form-select @error('gender') is-invalid @enderror">
                                 <option value="nam" @selected(old('gender', $member->gender) === 'nam')>Nam</option>
                                 <option value="nu" @selected(old('gender', $member->gender) === 'nu')>Nữ</option>
                                 <option value="khac" @selected(old('gender', $member->gender) === 'khac')>Khác</option>
@@ -112,7 +122,7 @@
 
                         <div class="col-12 col-md-6">
                             <label for="avatar_file" class="form-label fw-semibold text-dark mb-1">Ảnh đại diện</label>
-                            <input id="avatar_file" name="avatar_file" type="file" accept="image/*" class="form-control @error('avatar_file') is-invalid @enderror">
+                            <input id="avatar_file" name="avatar_file" type="file" @disabled($medicalOnly) accept="image/*" class="form-control @error('avatar_file') is-invalid @enderror">
                             @error('avatar_file')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                     </div>

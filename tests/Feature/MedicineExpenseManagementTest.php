@@ -314,17 +314,20 @@ class MedicineExpenseManagementTest extends TestCase
         $this->assertSame('Hóa đơn chỉ được xem', $expense->fresh()->title);
     }
 
-    public function test_doctor_can_create_expense(): void
+    public function test_doctor_can_view_but_not_manage_family_expenses(): void
     {
         $doctor = User::where('email', 'bs.minh@medcabinet.vn')->first();
 
+        // Sổ chi tiêu là việc của Chủ hộ: Bác sĩ chỉ xem
+        $this->actingAs($doctor)->get(route('expenses.index'))->assertOk();
+        $this->actingAs($doctor)->get(route('expenses.create'))->assertForbidden();
         $this->actingAs($doctor)->post(route('expenses.store'), [
             'title' => 'Bác sĩ ghi nhận tiền thuốc',
             'amount' => 12500,
             'purchase_date' => Carbon::today()->toDateString(),
-        ])->assertRedirect(route('expenses.index'));
+        ])->assertForbidden();
 
-        $this->assertDatabaseHas('medicine_expenses', ['title' => 'Bác sĩ ghi nhận tiền thuốc', 'amount' => 12500]);
+        $this->assertDatabaseMissing('medicine_expenses', ['title' => 'Bác sĩ ghi nhận tiền thuốc']);
     }
 
     public function test_amount_overflow_and_future_purchase_date_are_rejected(): void

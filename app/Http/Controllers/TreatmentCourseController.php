@@ -411,6 +411,11 @@ class TreatmentCourseController extends Controller
         $this->authorizeCourse($request, $treatmentCourse);
         abort_unless($request->user()->canDeleteTreatments(), 403, 'Chỉ Bác sĩ/Người chăm sóc hoặc Quản trị viên hệ thống mới có quyền xóa đợt điều trị.');
 
+        // Hồ sơ điều trị đã phát sinh lịch sử (điểm danh, mua thuốc, chi phí) là dữ liệu y tế: không xóa, chỉ kết thúc đợt
+        if ($this->hasHistory($treatmentCourse)) {
+            return back()->with('warning', 'Đợt điều trị đã có lịch sử điểm danh / mua thuốc / chi phí nên không thể xóa (để giữ hồ sơ y tế). Hãy dùng "Kết thúc đợt" thay vì xóa.');
+        }
+
         $imagePath = $treatmentCourse->prescription_image_path;
 
         DB::transaction(function () use ($treatmentCourse) {
@@ -465,6 +470,18 @@ class TreatmentCourseController extends Controller
             'success' => true,
             'explanation' => $explanation,
         ]);
+    }
+
+    /**
+     * Đợt điều trị đã có điểm danh uống thuốc, lô thuốc mua theo đơn hoặc chi phí gắn với đơn
+     */
+    protected function hasHistory(TreatmentCourse $course): bool
+    {
+        $itemIds = $course->prescriptionItems()->pluck('id');
+
+        return \App\Models\MedicationLog::whereHas('schedule', fn ($q) => $q->whereIn('prescription_item_id', $itemIds))->exists()
+            || CabinetItem::withAnyApproval()->whereIn('prescription_item_id', $itemIds)->exists()
+            || \App\Models\MedicineExpense::where('treatment_course_id', $course->id)->exists();
     }
 
     /**

@@ -21,6 +21,9 @@ class CabinetLotReviewController extends Controller
     {
         $item = $this->findPendingLot($lot);
         $family = $this->ensureReviewer($request, $item);
+        // Kiểm tra chéo: người mua không tự xác nhận thuốc mình mua
+        abort_if((int) $item->purchased_by === (int) $request->user()->id, 403,
+            'Bạn là người mua lô thuốc này nên không tự xác nhận được. Cần Bác sĩ khác hoặc Quản trị viên hệ thống xác nhận.');
         $validated = $request->validate([
             'review_note' => ['nullable', 'string', 'max:1000'],
         ]);

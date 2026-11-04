@@ -61,7 +61,7 @@
             <div class="px-3 pt-2 small text-muted">Thuốc chỉ được dùng (tính vào tủ, trừ khi điểm danh) sau khi được xác nhận đúng thuốc, đúng hàm lượng, còn hạn.</div>
             @foreach ($pendingLots as $lot)
                 <div class="{{ !$loop->last || $returnedLots->isNotEmpty() ? 'border-bottom' : '' }}">
-                    @include('cabinet-supply.partials.lot-review', ['lot' => $lot, 'canReview' => $user->canManageCabinet()])
+                    @include('cabinet-supply.partials.lot-review', ['lot' => $lot, 'canReview' => $user->canManageCabinet() && (int) $lot->purchased_by !== (int) $user->id])
                 </div>
             @endforeach
             @foreach ($returnedLots as $lot)

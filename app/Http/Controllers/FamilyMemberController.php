@@ -148,7 +148,7 @@ class FamilyMemberController extends Controller
     public function edit(Request $request, FamilyMember $member)
     {
         $this->authorizeMember($request, $member);
-        abort_unless($request->user()->canEditMember($member), 403, 'Bạn chỉ có quyền chỉnh sửa hồ sơ sức khỏe của chính mình hoặc cần quyền Chủ hộ.');
+        abort_unless($request->user()->canEditMedicalInfo($member), 403, 'Bạn chỉ có quyền chỉnh sửa hồ sơ sức khỏe của chính mình hoặc cần quyền Chủ hộ / Bác sĩ.');
 
         $family = $request->user()->family;
         $availableUsers = $family->users()
@@ -171,9 +171,25 @@ class FamilyMemberController extends Controller
     public function update(Request $request, FamilyMember $member)
     {
         $this->authorizeMember($request, $member);
-        abort_unless($request->user()->canEditMember($member), 403, 'Bạn chỉ có quyền chỉnh sửa hồ sơ sức khỏe của chính mình hoặc cần quyền Chủ hộ.');
+        abort_unless($request->user()->canEditMedicalInfo($member), 403, 'Bạn chỉ có quyền chỉnh sửa hồ sơ sức khỏe của chính mình hoặc cần quyền Chủ hộ / Bác sĩ.');
+
+        // Bác sĩ chỉ cập nhật thông tin y tế; thông tin cá nhân giữ nguyên như hiện tại
+        $medicalOnly = !$request->user()->canEditMember($member);
+        if ($medicalOnly) {
+            $request->merge([
+                'name' => $member->name,
+                'relationship' => $member->relationship,
+                'gender' => $member->gender,
+                'dob' => $member->dob?->format('Y-m-d'),
+                'user_id' => $member->user_id,
+            ]);
+            $request->files->remove('avatar_file');
+        }
 
         $data = $this->validatedData($request, $member->id);
+        if ($medicalOnly) {
+            $data = array_intersect_key($data, array_flip(['blood_type', 'allergies', 'underlying_diseases']));
+        }
 
         // Thành viên thường chỉ sửa thông tin sức khỏe của mình, không đổi liên kết tài khoản / quan hệ
         if (!$request->user()->canManageMembers()) {

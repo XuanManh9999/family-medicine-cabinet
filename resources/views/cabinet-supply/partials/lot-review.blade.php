@@ -37,6 +37,10 @@
         </div>
     </div>
 
+    @if (!$canReview && auth()->user()->canManageCabinet() && (int) $lot->purchased_by === (int) auth()->id())
+        <div class="small text-muted mt-2"><i class="bi bi-person-lock me-1"></i>Bạn là người mua lô này — cần Bác sĩ khác hoặc Quản trị viên hệ thống xác nhận (kiểm tra chéo).</div>
+    @endif
+
     @if ($canReview)
         <div class="row g-2 mt-1">
             <div class="col-12 col-lg-7">

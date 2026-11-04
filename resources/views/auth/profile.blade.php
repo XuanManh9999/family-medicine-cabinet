@@ -156,15 +156,17 @@
                             <li><i class="bi bi-check-circle-fill text-success me-1"></i> Quản lý thành viên gia đình (thêm/sửa hồ sơ y tế/xóa).</li>
                             <li><i class="bi bi-check-circle-fill text-success me-1"></i> Quản lý chi phí y tế và trung tâm cảnh báo của gia đình.</li>
                             <li><i class="bi bi-check-circle-fill text-success me-1"></i> Cung cấp mã gia đình để mời thành viên khác vào nhà.</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-1"></i> Đề nghị chỉ định Bác sĩ cho gia đình (Quản trị viên xác minh trước khi cấp quyền).</li>
                             <li><i class="bi bi-eye text-primary me-1"></i> Xem tủ thuốc, đơn điều trị, lịch uống thuốc và điểm danh uống thuốc.</li>
                             <li><i class="bi bi-dash-circle text-muted me-1"></i> Thêm/sửa thuốc trong tủ, kê đơn và lập lịch uống do Bác sĩ phụ trách.</li>
                         </ul>
                     @elseif($user->isDoctorOrCaregiver())
                         <ul class="list-unstyled mb-0 d-grid gap-1">
-                            <li><i class="bi bi-check-circle-fill text-success me-1"></i> Quản lý tủ thuốc gia đình (thêm/sửa/xóa thuốc, nhập Excel, cập nhật tồn kho).</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-1"></i> Quản lý tủ thuốc gia đình, xác nhận thuốc gia đình mua về (không tự xác nhận thuốc mình mua).</li>
                             <li><i class="bi bi-check-circle-fill text-success me-1"></i> Tạo và quản lý các phác đồ điều trị, đơn thuốc.</li>
                             <li><i class="bi bi-check-circle-fill text-success me-1"></i> Thiết lập và quản lý lịch nhắc uống thuốc cho bệnh nhân.</li>
-                            <li><i class="bi bi-dash-circle text-muted me-1"></i> Giới hạn: Không thay đổi sổ thành viên gia đình.</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-1"></i> Cập nhật nhóm máu, tiền sử dị ứng, bệnh nền của thành viên.</li>
+                            <li><i class="bi bi-dash-circle text-muted me-1"></i> Giới hạn: không quản lý sổ thành viên và sổ chi tiêu gia đình.</li>
                         </ul>
                     @else
                         <ul class="list-unstyled mb-0 d-grid gap-1">
@@ -270,13 +272,24 @@
                                         <td class="text-end">
                                             @if ($u->id !== $user->id && ($u->isMember() || $u->isDoctorOrCaregiver()))
                                                 <div class="d-inline-flex gap-1 align-items-center">
-                                                    <form method="POST" action="{{ route('family.users.role', $u) }}" class="d-inline-flex gap-1">
-                                                        @csrf @method('PATCH')
-                                                        <select name="role" class="form-select form-select-sm py-0" style="width: auto; font-size: 12px;" onchange="this.form.submit()" aria-label="Vai trò của {{ $u->name }}">
-                                                            <option value="member" @selected($u->isMember())>Thành viên</option>
-                                                            <option value="doctor_caregiver" @selected($u->isDoctorOrCaregiver())>Bác sĩ / Chăm sóc</option>
-                                                        </select>
-                                                    </form>
+                                                    @php $pendingDoctor = $pendingDoctorRequests->get($u->id); @endphp
+                                                    @if ($u->isDoctorOrCaregiver())
+                                                        <form method="POST" action="{{ route('family.users.role', $u) }}" class="d-inline"
+                                                              onsubmit="return confirm('Thôi vai trò Bác sĩ của tài khoản này?')">
+                                                            @csrf @method('PATCH')
+                                                            <input type="hidden" name="role" value="member">
+                                                            <button type="submit" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size: 12px;">Thôi làm Bác sĩ</button>
+                                                        </form>
+                                                    @elseif ($pendingDoctor)
+                                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" title="{{ $pendingDoctor->credentials }}">Chờ Admin duyệt Bác sĩ</span>
+                                                        <form method="POST" action="{{ route('family.doctor-requests.cancel', $pendingDoctor) }}" class="d-inline">
+                                                            @csrf
+                                                            <button type="submit" class="btn btn-sm btn-link py-0 px-1" style="font-size: 12px;">Hủy</button>
+                                                        </form>
+                                                    @else
+                                                        <button type="button" class="btn btn-sm btn-outline-success py-0 px-2" style="font-size: 12px;"
+                                                                data-bs-toggle="collapse" data-bs-target="#doctor-request-{{ $u->id }}">Đề nghị làm Bác sĩ</button>
+                                                    @endif
                                                     <form method="POST" action="{{ route('family.users.remove', $u) }}" class="d-inline"
                                                           onsubmit="return confirm('Gỡ tài khoản này khỏi gia đình? Hồ sơ sức khỏe vẫn được giữ lại.')">
                                                         @csrf @method('DELETE')
@@ -291,6 +304,19 @@
                                         </td>
                                     @endif
                                 </tr>
+                                @if ($user->isFamilyAdmin() && $u->isMember() && !$pendingDoctorRequests->has($u->id) && $u->id !== $user->id)
+                                    <tr class="collapse" id="doctor-request-{{ $u->id }}">
+                                        <td colspan="5" class="bg-light">
+                                            <form method="POST" action="{{ route('family.users.doctor-request', $u) }}" class="d-flex flex-wrap gap-2 align-items-center small">
+                                                @csrf
+                                                <span class="text-muted">Quản trị viên sẽ xác minh trước khi cấp quyền Bác sĩ cho <strong>{{ $u->name }}</strong>:</span>
+                                                <input type="text" name="credentials" required minlength="10" maxlength="1000" class="form-control form-control-sm flex-grow-1" style="min-width: 260px;"
+                                                       placeholder="Nơi công tác, chuyên khoa, số chứng chỉ hành nghề...">
+                                                <button type="submit" class="btn btn-sm btn-success">Gửi đề nghị</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                @endif
                             @endforeach
                         </tbody>
                     </table>

@@ -198,7 +198,13 @@ class AuthController extends Controller
     public function profile()
     {
         $user = Auth::user()->load(['family.members', 'family.users']);
-        return view('auth.profile', compact('user'));
+
+        // Đề nghị chỉ định Bác sĩ đang chờ Quản trị viên xác minh (theo từng tài khoản trong nhà)
+        $pendingDoctorRequests = $user->family_id
+            ? \App\Models\DoctorRoleRequest::pending()->where('family_id', $user->family_id)->get()->keyBy('user_id')
+            : collect();
+
+        return view('auth.profile', compact('user', 'pendingDoctorRequests'));
     }
 
     /**

@@ -127,6 +127,7 @@
                     <option value="cabinet_request" @selected($type === 'cabinet_request')>Đề nghị nhập thuốc</option>
                     <option value="refill_needed" @selected($type === 'refill_needed')>Thuốc đang uống sắp hết</option>
                     <option value="refill_request" @selected($type === 'refill_request')>Yêu cầu bổ sung thuốc</option>
+                    <option value="purchase_review" @selected($type === 'purchase_review')>Thuốc mới mua chờ xác nhận</option>
                 </select>
             </div>
 

@@ -19,12 +19,14 @@ class PrescriptionItem extends Model
         'total_prescribed_quantity',
         'unit',
         'meal_timing',
+        'stopped_at',
     ];
 
     protected function casts(): array
     {
         return [
             'total_prescribed_quantity' => 'decimal:2',
+            'stopped_at' => 'date',
         ];
     }
 
@@ -46,7 +48,19 @@ class PrescriptionItem extends Model
     /** Các lô thuốc gia đình đã mua về theo thuốc này trong đơn */
     public function cabinetItems()
     {
-        return $this->hasMany(CabinetItem::class);
+        // Gồm cả lô đã mua đang chờ Bác sĩ xác nhận (không bắt gia đình mua trùng), trừ lô bị trả lại
+        return $this->hasMany(CabinetItem::class)
+            ->withoutGlobalScope(CabinetItem::SCOPE_APPROVED)
+            ->where('cabinet_items.approval_status', '!=', CabinetItem::APPROVAL_RETURNED);
+    }
+
+    /** Số lượng đã mua nhưng Bác sĩ chưa xác nhận */
+    public function getPendingReviewQuantityAttribute(): float
+    {
+        $items = $this->relationLoaded('cabinetItems') ? $this->cabinetItems : $this->cabinetItems()->get();
+
+        return (float) $items->where('approval_status', CabinetItem::APPROVAL_PENDING)
+            ->sum(fn (CabinetItem $item) => (float) ($item->purchased_quantity ?? $item->quantity));
     }
 
     /**

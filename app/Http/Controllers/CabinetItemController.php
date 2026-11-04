@@ -110,7 +110,12 @@ class CabinetItemController extends Controller
         $data = $this->validatedData($request);
         $data['family_id'] = $family->id;
         $data['status'] = CabinetItem::computeStatus($data['expiry_date'], $data['quantity']);
-        CabinetItem::create($data);
+        // Bác sĩ / Quản trị viên tự nhập thuốc vào tủ: chính họ là người phê duyệt
+        CabinetItem::create(array_merge($data, [
+            'approval_status' => CabinetItem::APPROVAL_APPROVED,
+            'approved_by' => $request->user()->id,
+            'approved_at' => now(),
+        ]));
         $this->refreshAlerts($family);
 
         return redirect()->route('cabinet.index')->with('success', 'Đã thêm thuốc vào tủ thuốc gia đình.');

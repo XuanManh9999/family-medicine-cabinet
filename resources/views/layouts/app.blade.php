@@ -406,7 +406,10 @@
                         $isCabinetReviewer = $authUser && $authUser->family_id && $authUser->canManageCabinet();
                         $navPendingRefills = $isCabinetReviewer ? \App\Models\RefillRequest::where('family_id', $authUser->family_id)->pending()->count() : 0;
                         $navPendingRequests = $isCabinetReviewer ? \App\Models\CabinetRequest::where('family_id', $authUser->family_id)->pending()->count() : 0;
+                        $navPendingLots = $isCabinetReviewer ? \App\Models\CabinetItem::withAnyApproval()->where('family_id', $authUser->family_id)
+                            ->where('approval_status', \App\Models\CabinetItem::APPROVAL_PENDING)->count() : 0;
                         $navCabinetUrl = match (true) {
+                            $navPendingLots > 0 => route('cabinet.supply') . '#pending-lots',
                             $navPendingRefills > 0 => route('cabinet.supply') . '#refill-section',
                             $navPendingRequests > 0 => route('cabinet.requests.index', ['status' => 'pending']),
                             default => route('cabinet.index'),
@@ -415,8 +418,8 @@
                     <a href="{{ $navCabinetUrl }}" class="main-nav-link {{ request()->routeIs('cabinet.*') ? 'active' : '' }}">
                         <i class="bi bi-prescription2"></i>
                         <span>Tủ thuốc</span>
-                        @if ($navPendingRefills + $navPendingRequests > 0)
-                            <span class="badge bg-warning text-dark rounded-pill" style="font-size: 10px;" title="Yêu cầu bổ sung & đề nghị nhập thuốc chờ xử lý">{{ $navPendingRefills + $navPendingRequests }}</span>
+                        @if ($navPendingLots + $navPendingRefills + $navPendingRequests > 0)
+                            <span class="badge bg-warning text-dark rounded-pill" style="font-size: 10px;" title="Thuốc chờ xác nhận, yêu cầu bổ sung & đề nghị nhập thuốc chờ xử lý">{{ $navPendingLots + $navPendingRefills + $navPendingRequests }}</span>
                         @endif
                     </a>
                 </li>

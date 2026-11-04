@@ -129,6 +129,9 @@
                 @if ($supplySummary['running_low'] > 0)
                     <span><strong>{{ $supplySummary['running_low'] }}</strong> thuốc đang uống sắp hết</span>
                 @endif
+                @if ($supplySummary['pending_lots'] > 0)
+                    <span><strong>{{ $supplySummary['pending_lots'] }}</strong> lô thuốc mới mua chờ Bác sĩ xác nhận</span>
+                @endif
                 @if ($supplySummary['pending_refills'] > 0)
                     <span><strong>{{ $supplySummary['pending_refills'] }}</strong> yêu cầu bổ sung chờ Bác sĩ</span>
                 @endif

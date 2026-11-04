@@ -233,7 +233,13 @@ class CabinetRequestController extends Controller
 
             $data['family_id'] = $family->id;
             $data['status'] = CabinetItem::computeStatus($data['expiry_date'], $data['quantity']);
-            $item = CabinetItem::create($data);
+            $item = CabinetItem::create(array_merge($data, [
+                'approval_status' => CabinetItem::APPROVAL_APPROVED,
+                'purchased_by' => $locked->requested_by,
+                'approved_by' => $request->user()->id,
+                'approved_at' => now(),
+                'box_image_paths' => $locked->box_image_paths,
+            ]));
 
             $expense = null;
             $total = (float) $data['quantity'] * (float) ($data['price_per_unit'] ?? 0);

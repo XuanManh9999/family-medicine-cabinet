@@ -76,6 +76,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/cabinet/purchases/prescription/{prescriptionItem}/link', [\App\Http\Controllers\CabinetPurchaseController::class, 'linkExisting'])->name('cabinet.purchases.prescription.link');
     Route::get('/cabinet/purchases/refill/{refillRequest}', [\App\Http\Controllers\CabinetPurchaseController::class, 'createForRefill'])->name('cabinet.purchases.refill.create');
     Route::post('/cabinet/purchases/refill/{refillRequest}', [\App\Http\Controllers\CabinetPurchaseController::class, 'storeForRefill'])->name('cabinet.purchases.refill.store');
+    Route::post('/cabinet/lots/{lot}/confirm', [\App\Http\Controllers\CabinetLotReviewController::class, 'confirm'])->whereNumber('lot')->name('cabinet.lots.confirm');
+    Route::post('/cabinet/lots/{lot}/return', [\App\Http\Controllers\CabinetLotReviewController::class, 'returnLot'])->whereNumber('lot')->name('cabinet.lots.return');
+    Route::get('/cabinet/lots/{lot}/photos/{index}', [\App\Http\Controllers\CabinetLotReviewController::class, 'photo'])->whereNumber(['lot', 'index'])->name('cabinet.lots.photo');
     Route::post('/cabinet/refills', [\App\Http\Controllers\RefillRequestController::class, 'store'])->name('cabinet.refills.store');
     Route::post('/cabinet/refills/{refillRequest}/approve', [\App\Http\Controllers\RefillRequestController::class, 'approve'])->name('cabinet.refills.approve');
     Route::post('/cabinet/refills/{refillRequest}/stop', [\App\Http\Controllers\RefillRequestController::class, 'stop'])->name('cabinet.refills.stop');

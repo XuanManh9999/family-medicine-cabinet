@@ -40,13 +40,21 @@ class MedicationSupplyService
 
         $openRefills = RefillRequest::where('family_id', $family->id)
             ->whereIn('status', [RefillRequest::STATUS_PENDING, RefillRequest::STATUS_APPROVED])
-            ->get();
+            ->with('prescriptionItem.treatmentCourse')
+            ->get()
+            ->filter(fn (RefillRequest $refill) => $refill->isOpen())
+            ->values();
 
         $toBuyIds = $this->purchaseList($family)->pluck('item.id')->all();
+        // Lô đã mua về nhưng Bác sĩ chưa xác nhận: chưa dùng được, nhưng không phải báo "sắp hết" nữa
+        $pendingLots = CabinetItem::withAnyApproval()
+            ->where('family_id', $family->id)
+            ->where('approval_status', CabinetItem::APPROVAL_PENDING)
+            ->get();
 
         return $schedules
             ->groupBy(fn (MedicationSchedule $s) => $this->groupKey($s))
-            ->map(fn (Collection $group, string $key) => $this->summarize($family, $key, $group, $openRefills, $today, $toBuyIds))
+            ->map(fn (Collection $group, string $key) => $this->summarize($family, $key, $group, $openRefills, $today, $toBuyIds, $pendingLots))
             ->sortBy(fn (array $row) => [self::STATUS_ORDER[$row['status']], $row['days_left'] ?? 9999])
             ->values();
     }
@@ -101,6 +109,7 @@ class MedicationSupplyService
                 'member' => $item->treatmentCourse?->familyMember,
                 'prescribed' => (float) $item->total_prescribed_quantity ?: null,
                 'purchased' => $purchased,
+                'pending_review' => $item->pending_review_quantity,
                 'remaining' => $remaining,
                 'suggested' => $suggested,
                 'existing_stock' => $existingStock,
@@ -114,7 +123,7 @@ class MedicationSupplyService
     public function syncAlerts(Family $family): int
     {
         $rows = $this->forFamily($family)
-            ->filter(fn (array $row) => in_array($row['status'], ['out', 'low'], true) && !$row['awaiting_purchase']);
+            ->filter(fn (array $row) => in_array($row['status'], ['out', 'low'], true) && !$row['awaiting_purchase'] && $row['pending_review_quantity'] <= 0);
 
         $keptIds = [];
         foreach ($rows as $row) {
@@ -169,7 +178,7 @@ class MedicationSupplyService
         return $medicineId ? "m{$medicineId}" : 'n' . $this->matcher->normalizeName($schedule->medicine_name);
     }
 
-    private function summarize(Family $family, string $key, Collection $group, Collection $openRefills, Carbon $today, array $toBuyIds): array
+    private function summarize(Family $family, string $key, Collection $group, Collection $openRefills, Carbon $today, array $toBuyIds, Collection $pendingLots): array
     {
         /** @var MedicationSchedule $first */
         $first = $group->first();
@@ -242,6 +251,9 @@ class MedicationSupplyService
             'awaiting_purchase' => $prescriptionItem && in_array($prescriptionItem->id, $toBuyIds, true) && !in_array($status, ['enough', 'ok'], true),
             'refill_status' => $refill?->status,
             'refill' => $refill,
+            'pending_review_quantity' => round((float) $pendingLots->filter(fn (CabinetItem $lot) => ($prescriptionItem && (int) $lot->prescription_item_id === (int) $prescriptionItem->id)
+                || $this->matcher->normalizeName($lot->custom_name) === $this->matcher->normalizeName($first->medicine_name))
+                ->sum(fn (CabinetItem $lot) => (float) $lot->quantity), 2),
         ];
     }
 

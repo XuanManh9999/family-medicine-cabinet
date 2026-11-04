@@ -105,6 +105,7 @@ class SmartAlert extends Model
             'cabinet_request' => 'Đề nghị nhập thuốc',
             'refill_needed' => 'Thuốc đang uống sắp hết',
             'refill_request' => 'Yêu cầu bổ sung thuốc',
+            'purchase_review' => 'Thuốc mới mua chờ xác nhận',
             'drug_interaction' => 'Tương tác thuốc nguy hiểm',
             default => 'Cảnh báo y tế',
         };
@@ -122,6 +123,7 @@ class SmartAlert extends Model
             'cabinet_request' => 'bi-inbox text-primary',
             'refill_needed' => 'bi-hourglass-bottom text-warning',
             'refill_request' => 'bi-arrow-repeat text-primary',
+            'purchase_review' => 'bi-shield-check text-warning',
             'drug_interaction' => 'bi-capsule-pill text-danger',
             default => 'bi-bell text-secondary',
         };

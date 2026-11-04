@@ -84,9 +84,11 @@ class DashboardController extends Controller
             'to_buy' => $supply->purchaseList($family)->count()
                 + \App\Models\RefillRequest::where('family_id', $family->id)->awaitingPurchase()->count(),
             'running_low' => $supply->forFamily($family)
-                ->filter(fn (array $row) => in_array($row['status'], ['out', 'low'], true) && !$row['awaiting_purchase'] && !$row['refill'])
+                ->filter(fn (array $row) => in_array($row['status'], ['out', 'low'], true) && !$row['awaiting_purchase'] && !$row['refill'] && $row['pending_review_quantity'] <= 0)
                 ->count(),
             'pending_refills' => \App\Models\RefillRequest::where('family_id', $family->id)->pending()->count(),
+            'pending_lots' => \App\Models\CabinetItem::withAnyApproval()->where('family_id', $family->id)
+                ->where('approval_status', \App\Models\CabinetItem::APPROVAL_PENDING)->count(),
         ];
 
         return view('dashboard.index', compact(

@@ -50,6 +50,32 @@
     </div>
 @endif
 
+<!-- 0. THUỐC ĐÃ MUA CHỜ BÁC SĨ XÁC NHẬN (chưa được dùng) -->
+@if ($pendingLots->isNotEmpty() || $returnedLots->isNotEmpty())
+    <div class="content-card mb-3 border-warning" id="pending-lots">
+        <div class="content-card-header bg-warning-subtle d-flex justify-content-between align-items-center">
+            <span class="fw-bold text-warning-emphasis"><i class="bi bi-shield-check me-2"></i>Thuốc đã mua chờ {{ $hasDoctor ? 'Bác sĩ' : 'Quản trị viên' }} xác nhận</span>
+            <span class="badge bg-warning text-dark">{{ $pendingLots->count() }} lô</span>
+        </div>
+        <div class="content-card-body p-0">
+            <div class="px-3 pt-2 small text-muted">Thuốc chỉ được dùng (tính vào tủ, trừ khi điểm danh) sau khi được xác nhận đúng thuốc, đúng hàm lượng, còn hạn.</div>
+            @foreach ($pendingLots as $lot)
+                <div class="{{ !$loop->last || $returnedLots->isNotEmpty() ? 'border-bottom' : '' }}">
+                    @include('cabinet-supply.partials.lot-review', ['lot' => $lot, 'canReview' => $user->canManageCabinet()])
+                </div>
+            @endforeach
+            @foreach ($returnedLots as $lot)
+                <div class="p-3 small {{ !$loop->last ? 'border-bottom' : '' }}" id="lot-{{ $lot->id }}">
+                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle me-1">Bị trả lại</span>
+                    <strong>{{ $lot->display_name }}</strong> ({{ $qty($lot->quantity) }} {{ $lot->unit }})
+                    — {{ $lot->approver?->name }}: {{ $lot->review_note }}.
+                    <span class="text-muted">Hãy đổi lại ở hiệu thuốc rồi bấm "Đã mua" lần nữa.</span>
+                </div>
+            @endforeach
+        </div>
+    </div>
+@endif
+
 <!-- 1. CẦN MUA THEO ĐƠN -->
 <div class="content-card mb-3">
     <div class="content-card-header d-flex justify-content-between align-items-center">
@@ -82,6 +108,9 @@
                         <td class="text-end small">
                             {{ $row['prescribed'] ? $qty($row['prescribed']) . ' ' . $item->unit : 'Không ghi' }}
                             <div class="text-muted">đã mua {{ $qty($row['purchased']) }}</div>
+                            @if ($row['pending_review'] > 0)
+                                <div class="text-warning-emphasis">{{ $qty($row['pending_review']) }} chờ xác nhận</div>
+                            @endif
                         </td>
                         <td class="text-end fw-bold text-primary">
                             @if ($row['remaining'] !== null)
@@ -191,7 +220,9 @@
                             @endif
                         </td>
                         <td class="text-end text-nowrap">
-                            @if ($row['awaiting_purchase'])
+                            @if ($row['pending_review_quantity'] > 0)
+                                <span class="badge bg-warning text-dark">Đã mua – chờ xác nhận</span>
+                            @elseif ($row['awaiting_purchase'])
                                 <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Đã kê – chờ mua (mục 1)</span>
                             @elseif ($row['refill'])
                                 <span class="badge {{ $row['refill']->status_badge_class }}">{{ $row['refill']->status_label }}</span>
@@ -320,7 +351,7 @@
                             <button class="btn btn-sm btn-erp-primary" type="button" data-bs-toggle="collapse" data-bs-target="#decide-{{ $refill->id }}">
                                 <i class="bi bi-clipboard-check me-1"></i>Xử lý
                             </button>
-                        @elseif ($refill->isPending() && (int) $refill->requested_by === (int) $user->id)
+                        @elseif ($refill->isCancellable() && ((int) $refill->requested_by === (int) $user->id || $user->isFamilyAdmin()))
                             <form method="POST" action="{{ route('cabinet.refills.cancel', $refill) }}" class="d-inline" onsubmit="return confirm('Hủy yêu cầu bổ sung này?')">
                                 @csrf
                                 <button class="btn btn-sm btn-outline-secondary" type="submit">Hủy</button>

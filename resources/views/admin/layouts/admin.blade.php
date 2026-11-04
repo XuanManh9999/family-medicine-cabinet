@@ -260,7 +260,9 @@
                         // Đề nghị nhập thuốc & yêu cầu bổ sung của các hộ chưa có Bác sĩ → Quản trị viên cần xử lý thay
                         $familiesWithDoctorQuery = \App\Models\User::where('role', 'doctor_caregiver')->whereNotNull('family_id')->select('family_id');
                         $adminPendingRequests = \App\Models\CabinetRequest::pending()->whereNotIn('family_id', $familiesWithDoctorQuery)->count()
-                            + \App\Models\RefillRequest::pending()->whereNotIn('family_id', $familiesWithDoctorQuery)->count();
+                            + \App\Models\RefillRequest::pending()->whereNotIn('family_id', $familiesWithDoctorQuery)->count()
+                            + \App\Models\CabinetItem::withAnyApproval()->where('approval_status', \App\Models\CabinetItem::APPROVAL_PENDING)
+                                ->whereNotIn('family_id', $familiesWithDoctorQuery)->count();
                     @endphp
                     <a href="{{ route('admin.cabinet-requests.index') }}" class="admin-nav-link {{ request()->routeIs('admin.cabinet-requests.*') ? 'active' : '' }}">
                         <i class="bi bi-inbox"></i>

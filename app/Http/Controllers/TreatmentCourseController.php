@@ -570,6 +570,11 @@ class TreatmentCourseController extends Controller
     {
         $isActive = $course->status === 'dang_dieu_tri';
         $remaining = $times === null ? null : array_flip($times);
+        // Bác sĩ đã cho ngưng thuốc này → lịch uống kết thúc ở ngày ngưng dù đợt điều trị còn dài
+        $endDate = $course->end_date;
+        if ($pItem->stopped_at && (!$endDate || $pItem->stopped_at->lt($endDate))) {
+            $endDate = $pItem->stopped_at;
+        }
 
         foreach ($pItem->schedules()->orderBy('id')->get() as $schedule) {
             $keep = $remaining === null || isset($remaining[$schedule->time_of_day]);
@@ -591,7 +596,7 @@ class TreatmentCourseController extends Controller
                 'unit' => $pItem->unit,
                 'meal_timing' => $pItem->meal_timing ?? 'sau_an',
                 'start_date' => $course->start_date,
-                'end_date' => $course->end_date,
+                'end_date' => $endDate,
                 'is_active' => $isActive,
             ]);
         }
@@ -608,7 +613,7 @@ class TreatmentCourseController extends Controller
                 'scheduled_time' => self::TIME_SLOT_MAP[$timeKey],
                 'meal_timing' => $pItem->meal_timing ?? 'sau_an',
                 'start_date' => $course->start_date,
-                'end_date' => $course->end_date,
+                'end_date' => $endDate,
                 'is_active' => $isActive,
             ]);
         }

@@ -66,10 +66,20 @@ class RefillRequestController extends Controller
             ];
         }
 
+        // Thuốc của đơn đã kết thúc / tạm dừng: không kê tiếp vào đơn cũ, xử lý như thuốc mua thêm ngoài đơn
+        if (!empty($attributes['prescription_item_id'])) {
+            $prescriptionItem = \App\Models\PrescriptionItem::with('treatmentCourse')->find($attributes['prescription_item_id']);
+            if ($prescriptionItem?->treatmentCourse?->status !== 'dang_dieu_tri') {
+                $attributes['prescription_item_id'] = null;
+            }
+        }
+
         // Mỗi thuốc chỉ có một yêu cầu đang xử lý
         $duplicate = RefillRequest::where('family_id', $family->id)
             ->whereIn('status', [RefillRequest::STATUS_PENDING, RefillRequest::STATUS_APPROVED])
+            ->with('prescriptionItem.treatmentCourse')
             ->get()
+            ->filter(fn (RefillRequest $r) => $r->isOpen())
             ->first(fn (RefillRequest $r) => ($attributes['prescription_item_id'] && (int) $r->prescription_item_id === (int) $attributes['prescription_item_id'])
                 || $matcher->normalizeName($r->medicine_name) === $matcher->normalizeName($attributes['medicine_name']));
         if ($duplicate) {
@@ -117,13 +127,23 @@ class RefillRequestController extends Controller
             'approved_quantity.required' => 'Vui lòng ghi số lượng kê thêm / được mua thêm.',
         ]);
 
-        if (!$refillRequest->isPending()) {
-            return $this->redirectAfterReview($request)->with('warning', 'Yêu cầu này đã được xử lý trước đó.');
-        }
+        $processed = DB::transaction(function () use ($refillRequest, $validated, $request) {
+            $locked = RefillRequest::whereKey($refillRequest->id)->lockForUpdate()->first();
+            if (!$locked || !$locked->isPending()) {
+                return false;
+            }
 
-        DB::transaction(function () use ($refillRequest, $validated, $request) {
-            $item = $refillRequest->prescriptionItem;
+            $item = $locked->prescriptionItem;
+            // Đơn đã kết thúc trong lúc chờ → không cộng vào đơn cũ, chuyển thành "được mua thêm" ngoài đơn
+            if ($item && $item->treatmentCourse?->status !== 'dang_dieu_tri') {
+                $locked->prescription_item_id = null;
+                $item = null;
+            }
             if ($item) {
+                // Kê tiếp thuốc đã từng cho ngưng → thuốc được dùng lại
+                if ($item->stopped_at) {
+                    $item->update(['stopped_at' => null]);
+                }
                 // Kê tiếp: cộng thêm vào tổng số lượng kê của thuốc trong đơn → gia đình thấy ngay trong "Cần mua theo đơn"
                 $base = max((float) $item->total_prescribed_quantity, $item->purchased_quantity);
                 $item->update(['total_prescribed_quantity' => round($base + (float) $validated['approved_quantity'], 2)]);
@@ -142,15 +162,21 @@ class RefillRequestController extends Controller
                 }
             }
 
-            $refillRequest->update([
+            $locked->fill([
                 'status' => RefillRequest::STATUS_APPROVED,
                 'approved_quantity' => $validated['approved_quantity'],
                 'extended_until' => $validated['extended_until'] ?? null,
                 'review_note' => $validated['review_note'] ?? null,
                 'reviewed_by' => $request->user()->id,
                 'reviewed_at' => now(),
-            ]);
+            ])->save();
+
+            return true;
         });
+
+        if (!$processed) {
+            return $this->redirectAfterReview($request)->with('warning', 'Yêu cầu này đã được xử lý trước đó.');
+        }
 
         $refillRequest->refresh();
         $this->replaceAlert($refillRequest, 'info',
@@ -174,25 +200,34 @@ class RefillRequestController extends Controller
             'review_note.required' => 'Vui lòng ghi lý do ngưng thuốc để gia đình hiểu.',
         ]);
 
-        if (!$refillRequest->isPending()) {
-            return $this->redirectAfterReview($request)->with('warning', 'Yêu cầu này đã được xử lý trước đó.');
-        }
+        $processed = DB::transaction(function () use ($refillRequest, $validated, $request) {
+            $locked = RefillRequest::whereKey($refillRequest->id)->lockForUpdate()->first();
+            if (!$locked || !$locked->isPending()) {
+                return false;
+            }
 
-        DB::transaction(function () use ($refillRequest, $validated, $request) {
-            if ($refillRequest->prescription_item_id) {
-                MedicationSchedule::where('prescription_item_id', $refillRequest->prescription_item_id)
+            if ($locked->prescription_item_id) {
+                // Ghi nhận ngưng trên thuốc của đơn để lần sửa đơn sau không làm thuốc uống lại
+                \App\Models\PrescriptionItem::whereKey($locked->prescription_item_id)->update(['stopped_at' => today()->toDateString()]);
+                MedicationSchedule::where('prescription_item_id', $locked->prescription_item_id)
                     ->where('is_active', true)
                     ->where(fn ($q) => $q->whereNull('end_date')->orWhereDate('end_date', '>', today()))
                     ->update(['end_date' => today()->toDateString()]);
             }
 
-            $refillRequest->update([
+            $locked->update([
                 'status' => RefillRequest::STATUS_STOPPED,
                 'review_note' => $validated['review_note'],
                 'reviewed_by' => $request->user()->id,
                 'reviewed_at' => now(),
             ]);
+
+            return true;
         });
+
+        if (!$processed) {
+            return $this->redirectAfterReview($request)->with('warning', 'Yêu cầu này đã được xử lý trước đó.');
+        }
 
         $this->replaceAlert($refillRequest, 'warning', "Bác sĩ cho ngưng thuốc: {$refillRequest->medicine_name}",
             "{$request->user()->name} cho ngưng \"{$refillRequest->medicine_name}\", không cần mua thêm. Lý do: {$validated['review_note']}");
@@ -210,16 +245,23 @@ class RefillRequestController extends Controller
             'review_note.required' => 'Vui lòng ghi lý do không mua thêm.',
         ]);
 
-        if (!$refillRequest->isPending()) {
+        $processed = DB::transaction(function () use ($refillRequest, $validated, $request) {
+            $locked = RefillRequest::whereKey($refillRequest->id)->lockForUpdate()->first();
+            if (!$locked || !$locked->isPending()) {
+                return false;
+            }
+
+            return $locked->update([
+                'status' => RefillRequest::STATUS_REJECTED,
+                'review_note' => $validated['review_note'],
+                'reviewed_by' => $request->user()->id,
+                'reviewed_at' => now(),
+            ]);
+        });
+
+        if (!$processed) {
             return $this->redirectAfterReview($request)->with('warning', 'Yêu cầu này đã được xử lý trước đó.');
         }
-
-        $refillRequest->update([
-            'status' => RefillRequest::STATUS_REJECTED,
-            'review_note' => $validated['review_note'],
-            'reviewed_by' => $request->user()->id,
-            'reviewed_at' => now(),
-        ]);
 
         $this->replaceAlert($refillRequest, 'warning', "Không mua thêm: {$refillRequest->medicine_name}",
             "{$request->user()->name} cho biết chưa cần mua thêm \"{$refillRequest->medicine_name}\". Lý do: {$validated['review_note']}");
@@ -231,10 +273,11 @@ class RefillRequestController extends Controller
     {
         $family = $this->ensureFamily($request);
         abort_unless((int) $refillRequest->family_id === (int) $family->id, 404);
-        abort_unless((int) $refillRequest->requested_by === (int) $request->user()->id, 403, 'Bạn chỉ có thể hủy yêu cầu do chính mình gửi.');
+        abort_unless((int) $refillRequest->requested_by === (int) $request->user()->id || $request->user()->isFamilyAdmin(), 403,
+            'Bạn chỉ có thể hủy yêu cầu do chính mình gửi.');
 
-        if (!$refillRequest->isPending()) {
-            return back()->with('warning', 'Chỉ hủy được yêu cầu đang chờ Bác sĩ.');
+        if (!$refillRequest->isCancellable()) {
+            return back()->with('warning', 'Chỉ hủy được yêu cầu đang chờ Bác sĩ, hoặc thuốc được đồng ý mua thêm mà chưa mua.');
         }
 
         $refillRequest->update(['status' => RefillRequest::STATUS_CANCELLED]);

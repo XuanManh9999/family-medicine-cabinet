@@ -103,6 +103,34 @@ class RefillRequest extends Model
         return $this->status === self::STATUS_PENDING;
     }
 
+    /**
+     * Yêu cầu còn "đang xử lý" (chặn gửi trùng): đang chờ Bác sĩ, hoặc đã được đồng ý mua mà gia đình chưa mua xong.
+     * Yêu cầu kê tiếp theo đơn chỉ còn mở khi đơn đó còn đang điều trị và thuốc vẫn còn phải mua.
+     */
+    public function isOpen(): bool
+    {
+        if ($this->status === self::STATUS_PENDING) {
+            return true;
+        }
+        if ($this->status !== self::STATUS_APPROVED) {
+            return false;
+        }
+        if (!$this->prescription_item_id) {
+            return true;
+        }
+
+        $item = $this->prescriptionItem;
+
+        return $item && $item->treatmentCourse?->status === 'dang_dieu_tri' && $item->needs_purchase;
+    }
+
+    /** Gia đình được hủy: yêu cầu đang chờ, hoặc thuốc ngoài đơn đã được đồng ý nhưng chưa mua */
+    public function isCancellable(): bool
+    {
+        return $this->status === self::STATUS_PENDING
+            || ($this->status === self::STATUS_APPROVED && $this->prescription_item_id === null);
+    }
+
     public function getStatusLabelAttribute(): string
     {
         return match ($this->status) {

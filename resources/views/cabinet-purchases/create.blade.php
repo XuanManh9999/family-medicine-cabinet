@@ -15,16 +15,25 @@
         <i class="bi bi-arrow-left me-1"></i> Quay lại Cần mua & bổ sung
     </a>
     <h1 class="h4 fw-bold text-dark mb-1"><i class="bi bi-bag-check text-success me-1"></i>Đã mua: {{ $medicineName }}</h1>
-    <div class="text-muted small">Thuốc do Bác sĩ đã kê / đồng ý nên không cần duyệt lại. Bạn chỉ ghi số lượng thực mua và hạn dùng in trên vỏ hộp.</div>
+    <div class="text-muted small">Ghi số lượng thực mua, hạn dùng in trên vỏ và <strong>chụp ảnh vỏ hộp</strong>. Bác sĩ sẽ xác nhận đúng thuốc, đúng hàm lượng trước khi thuốc được dùng.</div>
 </div>
 
 <div class="row g-3">
     <div class="col-12 col-lg-7">
-        <form method="POST" action="{{ $formAction }}" class="content-card">
+        <form method="POST" action="{{ $formAction }}" class="content-card" enctype="multipart/form-data">
             @csrf
             <input type="hidden" name="return_to" value="{{ request('return') }}">
             <div class="content-card-body p-3">
                 <div class="row g-3">
+                    <div class="col-12">
+                        <label for="box_photos" class="form-label fw-semibold mb-1"><i class="bi bi-camera me-1"></i>Ảnh vỏ hộp <span class="text-muted fw-normal">(khuyên dùng, tối đa 3 ảnh)</span></label>
+                        <input type="file" name="box_photos[]" id="box_photos" accept="image/*" capture="environment" multiple
+                               class="form-control @error('box_photos') is-invalid @enderror @error('box_photos.*') is-invalid @enderror">
+                        @error('box_photos')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        @error('box_photos.*')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="form-text">Chụp mặt trước (thấy tên, hàm lượng) và chỗ in HSD để Bác sĩ đối chiếu với đơn.</div>
+                    </div>
+
                     <div class="col-12 col-md-6">
                         <label for="quantity" class="form-label fw-semibold mb-1">Số lượng thực mua <span class="text-danger">*</span></label>
                         <div class="input-group">
@@ -86,7 +95,7 @@
             </div>
             <div class="content-card-body p-3 border-top d-flex justify-content-between">
                 <a href="{{ route('cabinet.supply') }}" class="btn btn-outline-secondary">Hủy</a>
-                <button type="submit" class="btn btn-erp-primary px-4"><i class="bi bi-box-arrow-in-down me-1"></i>Cho vào tủ thuốc</button>
+                <button type="submit" class="btn btn-erp-primary px-4"><i class="bi bi-send-check me-1"></i>Gửi Bác sĩ xác nhận</button>
             </div>
         </form>
     </div>

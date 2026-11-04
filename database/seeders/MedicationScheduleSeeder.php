@@ -77,8 +77,26 @@ class MedicationScheduleSeeder extends Seeder
                 ]
             );
 
-            // Glucophage tối của Ông
+            // Glucophage của Ông: đơn kê 2 lần/ngày (Sáng - Tối) → 2 cữ uống
             $piGlu = PrescriptionItem::where('medicine_name', 'Glucophage 850mg')->first();
+            MedicationSchedule::updateOrCreate(
+                [
+                    'family_id' => $family->id,
+                    'family_member_id' => $grandpa->id,
+                    'medicine_name' => 'Glucophage 850mg',
+                    'time_of_day' => 'sang',
+                ],
+                [
+                    'prescription_item_id' => $piGlu?->id,
+                    'dosage' => '1 viên',
+                    'unit' => 'viên',
+                    'scheduled_time' => '07:30:00',
+                    'meal_timing' => 'trong_khi_an',
+                    'start_date' => $today->copy()->startOfMonth(),
+                    'end_date' => $today->copy()->endOfMonth(),
+                    'is_active' => true,
+                ]
+            );
             $schGlu = MedicationSchedule::updateOrCreate(
                 [
                     'family_id' => $family->id,

@@ -11,10 +11,20 @@ class CabinetItem extends Model
 {
     use HasFactory;
 
+    /** Trạng thái phê duyệt của lô thuốc: chỉ lô "approved" mới nằm trong tủ và được dùng */
+    public const APPROVAL_PENDING = 'pending_review';
+    public const APPROVAL_APPROVED = 'approved';
+    public const APPROVAL_RETURNED = 'returned';
+
+    /** Tên global scope ẩn lô chưa được Bác sĩ xác nhận khỏi mọi truy vấn tủ thuốc */
+    public const SCOPE_APPROVED = 'approved_only';
+
     protected $fillable = [
         'family_id',
         'medicine_id',
         'prescription_item_id',
+        'refill_request_id',
+        'medicine_expense_id',
         'custom_name',
         'batch_number',
         'manufacturing_date',
@@ -26,6 +36,12 @@ class CabinetItem extends Model
         'price_per_unit',
         'status',
         'notes',
+        'approval_status',
+        'purchased_by',
+        'approved_by',
+        'approved_at',
+        'review_note',
+        'box_image_paths',
     ];
 
     protected function casts(): array
@@ -36,11 +52,19 @@ class CabinetItem extends Model
             'quantity' => 'decimal:2',
             'purchased_quantity' => 'decimal:2',
             'price_per_unit' => 'decimal:2',
+            'approved_at' => 'datetime',
+            'box_image_paths' => 'array',
         ];
     }
 
     protected static function booted(): void
     {
+        // Thuốc chưa được Bác sĩ xác nhận (hoặc bị trả lại) không thuộc tủ thuốc: không hiển thị,
+        // không trừ kho khi điểm danh, không sinh cảnh báo, không tính tồn kho
+        static::addGlobalScope(self::SCOPE_APPROVED, function (Builder $query) {
+            $query->where($query->getModel()->getTable() . '.approval_status', self::APPROVAL_APPROVED);
+        });
+
         // Xóa lô thuốc => gỡ luôn các cảnh báo gắn với lô đó (tránh cảnh báo "mồ côi")
         static::deleting(function (CabinetItem $item) {
             SmartAlert::where('cabinet_item_id', $item->id)->delete();
@@ -66,6 +90,32 @@ class CabinetItem extends Model
     public function medicine()
     {
         return $this->belongsTo(Medicine::class);
+    }
+
+    public function refillRequest()
+    {
+        return $this->belongsTo(RefillRequest::class);
+    }
+
+    public function purchaser()
+    {
+        return $this->belongsTo(User::class, 'purchased_by');
+    }
+
+    public function approver()
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    /** Truy vấn cả lô chưa duyệt / bị trả lại (dùng cho luồng xác nhận của Bác sĩ) */
+    public static function withAnyApproval(): Builder
+    {
+        return static::withoutGlobalScope(self::SCOPE_APPROVED);
+    }
+
+    public function isPendingReview(): bool
+    {
+        return $this->approval_status === self::APPROVAL_PENDING;
     }
 
     // Scopes

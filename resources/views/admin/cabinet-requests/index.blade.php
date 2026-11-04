@@ -19,6 +19,23 @@
     </div>
 </div>
 
+@if ($pendingLots->isNotEmpty())
+    <div class="admin-card mb-3 border-warning">
+        <div class="admin-card-header bg-warning-subtle d-flex justify-content-between align-items-center">
+            <span class="text-warning-emphasis fw-bold"><i class="bi bi-shield-check me-2"></i>Thuốc đã mua chờ xác nhận (hộ chưa có Bác sĩ)</span>
+            <span class="badge bg-warning text-dark">{{ $pendingLots->count() }} lô</span>
+        </div>
+        <div class="admin-card-body p-0">
+            @foreach ($pendingLots as $lot)
+                <div class="{{ !$loop->last ? 'border-bottom' : '' }}">
+                    <div class="px-3 pt-2 small text-muted">{{ $lot->family?->name }}</div>
+                    @include('cabinet-supply.partials.lot-review', ['lot' => $lot, 'canReview' => true])
+                </div>
+            @endforeach
+        </div>
+    </div>
+@endif
+
 @if ($pendingRefills->isNotEmpty())
     <div class="admin-card mb-3 border-warning">
         <div class="admin-card-header bg-warning-subtle d-flex justify-content-between align-items-center">

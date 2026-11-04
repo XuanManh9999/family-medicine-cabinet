@@ -44,7 +44,15 @@ class AdminCabinetRequestController extends Controller
             ->latest()
             ->get();
 
+        $pendingLots = \App\Models\CabinetItem::withAnyApproval()
+            ->where('approval_status', \App\Models\CabinetItem::APPROVAL_PENDING)
+            ->whereNotIn('family_id', $familiesWithDoctor)
+            ->with(['family', 'purchaser', 'prescriptionItem.treatmentCourse.familyMember'])
+            ->oldest()
+            ->get();
+
         return view('admin.cabinet-requests.index', compact(
+            'pendingLots',
             'pendingRefills',
             'requests',
             'status',

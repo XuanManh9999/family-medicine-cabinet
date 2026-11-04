@@ -32,7 +32,7 @@ class CabinetSupplyController extends Controller
             ->latest()
             ->take(30)
             ->get();
-        $openRefillNames = $refills->whereIn('status', [RefillRequest::STATUS_PENDING, RefillRequest::STATUS_APPROVED])
+        $openRefillNames = $refills->filter(fn (RefillRequest $r) => $r->isOpen())
             ->map(fn (RefillRequest $r) => $matcher->normalizeName($r->medicine_name))
             ->all();
 
@@ -53,11 +53,28 @@ class CabinetSupplyController extends Controller
             ])
             ->values();
 
+        // Thuốc đã mua chờ Bác sĩ xác nhận, và thuốc vừa bị trả lại (để gia đình đổi / mua lại)
+        $pendingLots = CabinetItem::withAnyApproval()
+            ->where('family_id', $family->id)
+            ->where('approval_status', CabinetItem::APPROVAL_PENDING)
+            ->with(['purchaser', 'prescriptionItem.treatmentCourse.familyMember', 'medicine'])
+            ->oldest()
+            ->get();
+        $returnedLots = CabinetItem::withAnyApproval()
+            ->where('family_id', $family->id)
+            ->where('approval_status', CabinetItem::APPROVAL_RETURNED)
+            ->where('approved_at', '>=', now()->subDays(14))
+            ->with('approver')
+            ->latest('approved_at')
+            ->get();
+
         $hasDoctor = User::where('family_id', $family->id)->where('role', 'doctor_caregiver')->exists();
         $pendingCabinetRequests = CabinetRequest::where('family_id', $family->id)->pending()->count();
 
         return view('cabinet-supply.index', compact(
             'user',
+            'pendingLots',
+            'returnedLots',
             'purchaseList',
             'supplyRows',
             'awaitingRefills',

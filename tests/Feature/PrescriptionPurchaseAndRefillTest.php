@@ -91,7 +91,23 @@ class PrescriptionPurchaseAndRefillTest extends TestCase
         ], $extra));
     }
 
-    public function test_family_buys_prescribed_medicine_without_approval(): void
+    /** Bác sĩ xác nhận mọi lô thuốc đang chờ của gia đình */
+    private function doctorConfirmsAll(): void
+    {
+        foreach (CabinetItem::withAnyApproval()->where('approval_status', CabinetItem::APPROVAL_PENDING)->get() as $lot) {
+            $this->actingAs($this->doctor)->post(route('cabinet.lots.confirm', $lot->id))->assertRedirect();
+        }
+    }
+
+    private function buyAndConfirm(User $user, PrescriptionItem $item, float $qty, array $extra = [])
+    {
+        $response = $this->buy($user, $item, $qty, $extra);
+        $this->doctorConfirmsAll();
+
+        return $response;
+    }
+
+    public function test_family_buys_prescribed_medicine_and_it_waits_for_doctor(): void
     {
         $item = $this->prescribe(30);
 
@@ -105,7 +121,12 @@ class PrescriptionPurchaseAndRefillTest extends TestCase
 
         // Thành viên mua 20 viên (có giá nhưng không được ghi chi phí), Chủ hộ mua nốt 10 viên và ghi chi phí
         $this->buy($this->member, $item, 20, ['price_per_unit' => 2000, 'record_expense' => 1])->assertRedirect(route('cabinet.supply'));
-        $lot = CabinetItem::where('prescription_item_id', $item->id)->firstOrFail();
+        // Lô vừa mua chưa nằm trong tủ: chờ Bác sĩ xác nhận, nhưng vẫn tính là đã mua (không mua trùng)
+        $this->assertSame(0, CabinetItem::where('prescription_item_id', $item->id)->count());
+        $lot = CabinetItem::withAnyApproval()->where('prescription_item_id', $item->id)->firstOrFail();
+        $this->assertSame(CabinetItem::APPROVAL_PENDING, $lot->approval_status);
+        $this->assertSame($this->member->id, $lot->purchased_by);
+        $this->assertDatabaseHas('smart_alerts', ['type' => 'purchase_review', 'title' => 'Thuốc mới mua chờ xác nhận: Losartan 50mg']);
         $this->assertEquals(20, (float) $lot->purchased_quantity);
         $this->assertSame('Losartan 50mg', $lot->custom_name);
         $this->assertEquals(10, $item->fresh()->remaining_to_buy);
@@ -143,8 +164,8 @@ class PrescriptionPurchaseAndRefillTest extends TestCase
         $this->actingAs($this->familyAdmin)->get(route('cabinet.purchases.prescription.create', $item))
             ->assertOk()->assertSee('Dùng lô này');
 
-        // Mua lô mới theo đơn rồi điểm danh: trừ vào lô mua theo đơn
-        $this->buy($this->familyAdmin, $item, 10);
+        // Mua lô mới theo đơn, Bác sĩ xác nhận rồi điểm danh: trừ vào lô mua theo đơn
+        $this->buyAndConfirm($this->familyAdmin, $item, 10);
         $prescribedLot = CabinetItem::where('prescription_item_id', $item->id)->firstOrFail();
         $schedule = MedicationSchedule::where('prescription_item_id', $item->id)->where('time_of_day', 'sang')->firstOrFail();
         $this->actingAs($this->member)->post(route('schedules.log'), [
@@ -169,7 +190,7 @@ class PrescriptionPurchaseAndRefillTest extends TestCase
     {
         // Đã mua đủ 4 viên theo đơn, mỗi ngày uống 2 viên → chỉ đủ 2 ngày trong khi đợt còn 21 ngày
         $item = $this->prescribe(4);
-        $this->buy($this->familyAdmin, $item, 4);
+        $this->buyAndConfirm($this->familyAdmin, $item, 4);
 
         $row = app(MedicationSupplyService::class)->forFamily($this->family)
             ->first(fn ($r) => $r['medicine_name'] === 'Losartan 50mg');
@@ -218,7 +239,7 @@ class PrescriptionPurchaseAndRefillTest extends TestCase
     public function test_doctor_can_stop_medicine_instead_of_refilling(): void
     {
         $item = $this->prescribe(2);
-        $this->buy($this->familyAdmin, $item, 2);
+        $this->buyAndConfirm($this->familyAdmin, $item, 2);
         $row = app(MedicationSupplyService::class)->forFamily($this->family)->first(fn ($r) => $r['medicine_name'] === 'Losartan 50mg');
 
         $this->actingAs($this->member)->post(route('cabinet.refills.store'), ['source' => 'schedule', 'schedule_id' => $row['schedule_id']]);
@@ -258,6 +279,9 @@ class PrescriptionPurchaseAndRefillTest extends TestCase
         ])->assertRedirect(route('cabinet.supply'));
 
         $this->assertSame('fulfilled', $refill->fresh()->status);
+        // Lô mua bổ sung cũng phải chờ Bác sĩ xác nhận mới vào tủ
+        $this->assertSame(1, CabinetItem::where('family_id', $this->family->id)->where('custom_name', 'Băng gạc vô trùng')->count());
+        $this->doctorConfirmsAll();
         $this->assertSame(2, CabinetItem::where('family_id', $this->family->id)->where('custom_name', 'Băng gạc vô trùng')->count());
         $this->actingAs($this->familyAdmin)->post(route('cabinet.purchases.refill.store', $refill), [
             'quantity' => 2, 'unit' => 'hộp', 'expiry_date' => now()->addYears(2)->toDateString(),
@@ -267,7 +291,7 @@ class PrescriptionPurchaseAndRefillTest extends TestCase
     public function test_supply_alert_is_removed_once_stock_is_enough(): void
     {
         $item = $this->prescribe(4);
-        $this->buy($this->familyAdmin, $item, 4);
+        $this->buyAndConfirm($this->familyAdmin, $item, 4);
         $this->assertDatabaseHas('smart_alerts', ['type' => 'refill_needed']);
 
         // Có thêm đủ thuốc cho cả đợt → cảnh báo sắp hết tự gỡ

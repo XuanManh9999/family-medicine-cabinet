@@ -45,7 +45,9 @@
             $toBuyCount = $familyId ? app(\App\Services\MedicationSupplyService::class)->purchaseList(auth()->user()->family)->count()
                 + \App\Models\RefillRequest::where('family_id', $familyId)->awaitingPurchase()->count() : 0;
             $refillPendingCount = \App\Models\RefillRequest::where('family_id', $familyId)->pending()->count();
-            $supplyBadge = $toBuyCount + $refillPendingCount + count($shoppingItems);
+            $pendingLotCount = \App\Models\CabinetItem::withAnyApproval()->where('family_id', $familyId)
+                ->where('approval_status', \App\Models\CabinetItem::APPROVAL_PENDING)->count();
+            $supplyBadge = $toBuyCount + $refillPendingCount + $pendingLotCount + count($shoppingItems);
         @endphp
 
         <!-- Luồng chính: mua theo đơn / sắp hết thì yêu cầu bổ sung -->
@@ -70,6 +72,14 @@
         @endif
     </div>
 </div>
+
+@if ($pendingLotCount > 0)
+    <div class="alert alert-warning small py-2 mb-3 d-flex flex-wrap align-items-center gap-2">
+        <i class="bi bi-shield-check fs-5"></i>
+        <span>Có <strong>{{ $pendingLotCount }}</strong> lô thuốc gia đình vừa mua đang <strong>chờ Bác sĩ xác nhận</strong> — chưa được dùng và chưa tính vào tủ.</span>
+        <a href="{{ route('cabinet.supply') }}#pending-lots" class="btn btn-sm btn-warning ms-md-auto">Xem / xác nhận</a>
+    </div>
+@endif
 
 @if (session('import_errors'))
     <div class="alert alert-warning small py-2 mb-3">

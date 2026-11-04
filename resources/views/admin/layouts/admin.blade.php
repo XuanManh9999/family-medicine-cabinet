@@ -255,6 +255,21 @@
                         <span>Tài khoản Người dùng</span>
                     </a>
                 </li>
+                <li>
+                    @php
+                        // Đề nghị nhập thuốc của các hộ chưa có Bác sĩ → Quản trị viên cần duyệt thay
+                        $adminPendingRequests = \App\Models\CabinetRequest::pending()
+                            ->whereNotIn('family_id', \App\Models\User::where('role', 'doctor_caregiver')->whereNotNull('family_id')->select('family_id'))
+                            ->count();
+                    @endphp
+                    <a href="{{ route('admin.cabinet-requests.index') }}" class="admin-nav-link {{ request()->routeIs('admin.cabinet-requests.*') ? 'active' : '' }}">
+                        <i class="bi bi-inbox"></i>
+                        <span>Đề nghị nhập thuốc</span>
+                        @if ($adminPendingRequests > 0)
+                            <span class="badge bg-warning text-dark rounded-pill" style="font-size: 10px;">{{ $adminPendingRequests }}</span>
+                        @endif
+                    </a>
+                </li>
             </ul>
         </div>
     </nav>

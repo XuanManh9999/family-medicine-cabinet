@@ -29,6 +29,18 @@
     @endif
 </div>
 
+@unless ($hasDoctor)
+    <div class="alert alert-warning py-2 px-3 small d-flex gap-2">
+        <i class="bi bi-person-exclamation fs-5"></i>
+        <div>
+            <strong>Gia đình chưa có Bác sĩ / Người chăm sóc</strong> nên các đề nghị sẽ do Quản trị viên hệ thống duyệt thay.
+            @if ($user->isFamilyAdmin())
+                Chủ hộ có thể chỉ định Bác sĩ tại <a href="{{ route('profile') }}" class="alert-link">Hồ sơ → Tài khoản truy cập hộ gia đình</a>.
+            @endif
+        </div>
+    </div>
+@endunless
+
 <div class="content-card mb-3">
     <div class="content-card-body p-2 d-flex flex-wrap gap-1">
         @php
@@ -59,9 +71,17 @@
                     <tr>
                         <td>
                             <div class="fw-bold text-dark">{{ $req->display_name }}</div>
-                            @if ($req->medicine)
-                                <div class="text-muted small">{{ $req->medicine->active_ingredient }}</div>
+                            @if ($req->medicine || $req->active_ingredient)
+                                <div class="text-muted small">{{ $req->medicine?->active_ingredient ?? $req->active_ingredient }}</div>
                             @endif
+                            <div class="text-muted small">
+                                @if ($req->box_image_paths)
+                                    <i class="bi bi-camera me-1"></i>{{ count($req->box_image_paths) }} ảnh vỏ hộp
+                                @endif
+                                @if ($req->familyMember)
+                                    · Mua cho {{ $req->familyMember->name }}
+                                @endif
+                            </div>
                             @if ($req->price_per_unit)
                                 <div class="text-muted small">
                                     Đơn giá {{ number_format((float) $req->price_per_unit, 0, ',', '.') }} đ

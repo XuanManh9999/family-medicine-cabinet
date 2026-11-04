@@ -32,8 +32,10 @@ class CabinetRequest extends Model
     protected $fillable = [
         'family_id',
         'requested_by',
+        'family_member_id',
         'medicine_id',
         'custom_name',
+        'active_ingredient',
         'batch_number',
         'manufacturing_date',
         'expiry_date',
@@ -42,6 +44,8 @@ class CabinetRequest extends Model
         'storage_location',
         'price_per_unit',
         'notes',
+        'box_image_paths',
+        'requester_note',
         'record_expense',
         'status',
         'reviewed_by',
@@ -59,6 +63,7 @@ class CabinetRequest extends Model
             'quantity' => 'decimal:2',
             'price_per_unit' => 'decimal:2',
             'record_expense' => 'boolean',
+            'box_image_paths' => 'array',
             'reviewed_at' => 'datetime',
         ];
     }
@@ -81,6 +86,12 @@ class CabinetRequest extends Model
     public function medicine()
     {
         return $this->belongsTo(Medicine::class);
+    }
+
+    /** Thành viên gia đình sẽ dùng thuốc (nếu người gửi có chọn) */
+    public function familyMember()
+    {
+        return $this->belongsTo(FamilyMember::class);
     }
 
     public function cabinetItem()

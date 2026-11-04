@@ -154,7 +154,7 @@ class CabinetRequestFlowTest extends TestCase
 
         // Form đề nghị điền sẵn thuốc chọn từ danh mục
         $this->actingAs($this->familyAdmin)->get(route('cabinet.requests.create', ['medicine_id' => $medicine->id]))
-            ->assertOk()->assertSee('Gửi đề nghị cho Bác sĩ duyệt')->assertSee($medicine->name);
+            ->assertOk()->assertSee('Chụp ảnh vỏ hộp thuốc')->assertSee('Gửi cho Bác sĩ kiểm tra')->assertSee($medicine->name);
 
         // Bác sĩ thấy số đề nghị chờ duyệt trên menu
         $this->actingAs($this->familyAdmin)->post(route('cabinet.requests.store'), $this->payload());

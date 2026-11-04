@@ -117,6 +117,93 @@ PROMPT;
     }
 
     /**
+     * Đọc ảnh VỎ HỘP thuốc để điền nhanh đề nghị nhập thuốc cho người không có chuyên môn.
+     * Không có API key / đọc lỗi → trả về success=false, KHÔNG trả dữ liệu minh họa (tránh điền sai vào form).
+     *
+     * @return array{success: bool, message?: string, name?: ?string, active_ingredient?: ?string, concentration?: ?string,
+     *               batch_number?: ?string, manufacturing_date?: ?string, expiry_date?: ?string, unit?: ?string}
+     */
+    public function analyzeMedicineBox(string $imagePath, ?string $mimeType = 'image/jpeg'): array
+    {
+        if (empty($this->apiKey)) {
+            return [
+                'success' => false,
+                'message' => 'Chưa cấu hình Trợ lý AI (GEMINI_API_KEY) nên chưa đọc được ảnh. Vui lòng tự nhập các ô bên dưới theo chữ in trên vỏ hộp.',
+            ];
+        }
+
+        $base64Data = $this->prepareImageBase64($imagePath, $mimeType);
+
+        $prompt = <<<PROMPT
+Đây là ảnh chụp VỎ HỘP / VỈ / CHAI THUỐC tại Việt Nam do người nhà chụp. Hãy đọc đúng chữ in trên bao bì và trả về JSON thuần:
+{
+  "name": "Tên thương mại in to nhất trên vỏ (VD: Panadol Extra)",
+  "active_ingredient": "Hoạt chất & hàm lượng (VD: Paracetamol 500mg, Caffeine 65mg)",
+  "concentration": "Hàm lượng chính (VD: 500mg)",
+  "batch_number": "Số lô (Lot/Batch/SL) nếu đọc được",
+  "manufacturing_date": "Ngày sản xuất YYYY-MM-DD (NSX/MFG) nếu đọc được",
+  "expiry_date": "Hạn sử dụng YYYY-MM-DD (HSD/EXP). Nếu chỉ có tháng/năm thì lấy ngày cuối tháng",
+  "unit": "Đơn vị nhỏ nhất: viên / gói / chai / ống / tuýp / hộp"
+}
+Trường nào không đọc được rõ thì để null, tuyệt đối không đoán.
+PROMPT;
+
+        try {
+            $payload = [
+                'contents' => [[
+                    'parts' => [
+                        ['text' => $prompt],
+                        ['inline_data' => ['mime_type' => $mimeType, 'data' => $base64Data]],
+                    ],
+                ]],
+                'generationConfig' => [
+                    'temperature' => 0.0,
+                    'responseMimeType' => 'application/json',
+                ],
+            ];
+            $result = $this->generate($payload, 45, 'Medicine Box OCR');
+        } catch (Throwable $e) {
+            $result = null;
+        }
+
+        if (!is_array($result) || empty($result['name']) && empty($result['expiry_date'])) {
+            return [
+                'success' => false,
+                'message' => 'AI chưa đọc rõ được ảnh. Hãy chụp gần, đủ sáng, thấy rõ tên thuốc và dòng HSD — hoặc tự nhập các ô bên dưới.',
+            ];
+        }
+
+        $clean = fn ($value) => is_scalar($value) && trim((string) $value) !== '' ? mb_substr(trim((string) $value), 0, 255) : null;
+        $date = function ($value) {
+            if (!is_string($value) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+                return null;
+            }
+            [$y, $m, $d] = array_map('intval', explode('-', $value));
+
+            return checkdate($m, $d, $y) ? $value : null;
+        };
+
+        return [
+            'success' => true,
+            'name' => $clean($result['name'] ?? null),
+            'active_ingredient' => $clean($result['active_ingredient'] ?? null),
+            'concentration' => $clean($result['concentration'] ?? null),
+            'batch_number' => $clean($result['batch_number'] ?? null),
+            'manufacturing_date' => $date($result['manufacturing_date'] ?? null),
+            'expiry_date' => $date($result['expiry_date'] ?? null),
+            'unit' => $clean($result['unit'] ?? null),
+        ];
+    }
+
+    /**
+     * Kiểm tra nhanh dị ứng / chống chỉ định / trùng hoạt chất bằng bộ luật cục bộ (không gọi API)
+     */
+    public function checkLocalRules(array $medicines, array $patientHealthProfile = []): array
+    {
+        return $this->evaluateLocalRuleInteractions($medicines, $patientHealthProfile);
+    }
+
+    /**
      * Gemini Drug Interaction Safety Checker - Kiểm tra tương tác thuốc, dị ứng & quá liều hoạt chất
      *
      * @param array $medicines Danh sách thuốc đang dùng (mỗi phần tử có tên, hoạt chất, liều lượng)

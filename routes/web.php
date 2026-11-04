@@ -73,6 +73,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/cabinet/requests', [\App\Http\Controllers\CabinetRequestController::class, 'index'])->name('cabinet.requests.index');
     Route::get('/cabinet/requests/create', [\App\Http\Controllers\CabinetRequestController::class, 'create'])->name('cabinet.requests.create');
     Route::post('/cabinet/requests', [\App\Http\Controllers\CabinetRequestController::class, 'store'])->name('cabinet.requests.store');
+    Route::post('/cabinet/requests/scan-box', [\App\Http\Controllers\CabinetRequestController::class, 'scanBox'])->middleware('throttle:ai')->name('cabinet.requests.scan-box');
+    Route::get('/cabinet/requests/{cabinetRequest}/photos/{index}', [\App\Http\Controllers\CabinetRequestController::class, 'photo'])->whereNumber('index')->name('cabinet.requests.photo');
     Route::get('/cabinet/requests/{cabinetRequest}/review', [\App\Http\Controllers\CabinetRequestController::class, 'review'])->name('cabinet.requests.review');
     Route::post('/cabinet/requests/{cabinetRequest}/approve', [\App\Http\Controllers\CabinetRequestController::class, 'approve'])->name('cabinet.requests.approve');
     Route::post('/cabinet/requests/{cabinetRequest}/reject', [\App\Http\Controllers\CabinetRequestController::class, 'reject'])->name('cabinet.requests.reject');
@@ -123,6 +125,7 @@ Route::middleware(['auth', 'system_admin'])->prefix('admin')->name('admin.')->gr
     Route::get('/families', [\App\Http\Controllers\Admin\AdminFamilyController::class, 'index'])->name('families.index');
     Route::get('/families/{family}', [\App\Http\Controllers\Admin\AdminFamilyController::class, 'show'])->name('families.show');
     Route::get('/users', [\App\Http\Controllers\Admin\AdminUserController::class, 'index'])->name('users.index');
+    Route::get('/cabinet-requests', [\App\Http\Controllers\Admin\AdminCabinetRequestController::class, 'index'])->name('cabinet-requests.index');
     Route::patch('/users/{user}/role', [\App\Http\Controllers\Admin\AdminUserController::class, 'updateRole'])->name('users.role');
     Route::patch('/users/{user}/reset-password', [\App\Http\Controllers\Admin\AdminUserController::class, 'resetPassword'])->name('users.reset-password');
 });

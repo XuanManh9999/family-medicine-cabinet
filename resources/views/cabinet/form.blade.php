@@ -29,6 +29,10 @@
     </div>
 </div>
 
+@isset($topPartial)
+    @include($topPartial)
+@endisset
+
 <div class="row g-3">
     <!-- CỘT TRÁI: FORM NHẬP LIỆU CHUẨN ERP Y TẾ (8 CỘT) -->
     <div class="col-12 col-lg-8">

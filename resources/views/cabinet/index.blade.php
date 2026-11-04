@@ -46,13 +46,38 @@
             </button>
         @endif
 
+        @php
+            $pendingRequestCount = \App\Models\CabinetRequest::where('family_id', auth()->user()->family_id)->pending()->count();
+        @endphp
+        <a href="{{ route('cabinet.requests.index') }}" class="btn btn-outline-primary btn-sm position-relative">
+            <i class="bi bi-inbox me-1"></i> Đề nghị nhập thuốc
+            @if ($pendingRequestCount > 0)
+                <span class="badge bg-warning text-dark rounded-pill ms-1">{{ $pendingRequestCount }}</span>
+            @endif
+        </a>
+
         @if (auth()->user()->canManageCabinet())
             <a href="{{ route('cabinet.items.create') }}" class="btn btn-erp-primary btn-sm">
                 <i class="bi bi-plus-lg me-1"></i> Thêm thuốc vào tủ
             </a>
+        @elseif (auth()->user()->canRequestCabinetItems())
+            <a href="{{ route('cabinet.requests.create') }}" class="btn btn-erp-primary btn-sm">
+                <i class="bi bi-cart-plus me-1"></i> Đề nghị nhập thuốc mới mua
+            </a>
         @endif
     </div>
 </div>
+
+@if (session('import_errors'))
+    <div class="alert alert-warning small py-2 mb-3">
+        <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle me-1"></i>Các dòng bị bỏ qua khi nhập file ({{ count(session('import_errors')) }}):</div>
+        <ul class="mb-0 ps-3" style="max-height: 180px; overflow-y: auto;">
+            @foreach (session('import_errors') as $importError)
+                <li>{{ $importError }}</li>
+            @endforeach
+        </ul>
+    </div>
+@endif
 
 <!-- 6 Thẻ KPI chuẩn Dashboard Dược (Phân tách rạch ròi giữa Hạn sử dụng và Tồn kho) -->
 <div class="row g-2 mb-3">
@@ -320,7 +345,7 @@
 
                     <!-- TỒN KHO: Tách riêng với nhãn Tồn kho thấp / Hết hàng -->
                     <td>
-                        @if (auth()->user()->isFamilyAdmin())
+                        @if (auth()->user()->canManageCabinet())
                             <form method="POST" action="{{ route('cabinet.items.quantity', $item) }}" class="d-flex gap-1 align-items-center">
                                 @csrf @method('PATCH')
                                 <input aria-label="Số lượng {{ $item->display_name }}" name="quantity" type="number" min="0" max="999999.99" step="0.01" value="{{ rtrim(rtrim((string) $item->quantity, '0'), '.') }}" class="form-control form-control-sm text-end fw-bold" style="width: 76px;">
@@ -559,7 +584,7 @@
                         </label>
                         <input type="file" id="excel_file" name="excel_file" required accept=".csv,.txt" class="form-control">
                         <div class="form-text text-muted" style="font-size: 11.5px;">
-                            Hỗ trợ file CSV (UTF-8) xuất từ Microsoft Excel hoặc Google Sheets. Dung lượng tối đa 5MB.
+                            Hỗ trợ file CSV (UTF-8, UTF-16 hoặc Windows-1258) xuất từ Microsoft Excel, Google Sheets hoặc file "Xuất Excel" của hệ thống. Dung lượng tối đa 5MB, tối đa 1000 dòng.
                         </div>
                     </div>
 
@@ -624,6 +649,13 @@
 
 @push('scripts')
 <script>
+    // Mã hóa HTML mọi dữ liệu người dùng trước khi chèn vào innerHTML (chống Stored XSS)
+    function esc(value) {
+        const div = document.createElement('div');
+        div.textContent = value === null || value === undefined ? '' : String(value);
+        return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
     // Quick Detail Modal rendering
     document.querySelectorAll('.btn-quick-view').forEach(btn => {
         btn.addEventListener('click', function () {
@@ -640,17 +672,17 @@
             let modalHtml = `
                 <div class="row g-3">
                     <div class="col-12 border-bottom pb-3">
-                        <span class="badge bg-primary-subtle text-primary mb-1">${categoryName}</span>
-                        <h4 class="fw-bold text-dark mb-1">${item.custom_name}</h4>
+                        <span class="badge bg-primary-subtle text-primary mb-1">${esc(categoryName)}</span>
+                        <h4 class="fw-bold text-dark mb-1">${esc(item.custom_name)}</h4>
                         <div class="text-muted small">
-                            ${medicine && medicine.active_ingredient ? '<i class="bi bi-droplet me-1"></i><strong>Hoạt chất:</strong> ' + medicine.active_ingredient : ''}
-                            ${medicine && medicine.concentration ? ' · ' + medicine.concentration : ''}
+                            ${medicine && medicine.active_ingredient ? '<i class="bi bi-droplet me-1"></i><strong>Hoạt chất:</strong> ' + esc(medicine.active_ingredient) : ''}
+                            ${medicine && medicine.concentration ? ' · ' + esc(medicine.concentration) : ''}
                         </div>
                     </div>
 
                     <div class="col-6 col-md-4">
                         <div class="small text-muted">Số lô sản xuất</div>
-                        <div class="fw-bold text-dark">${item.batch_number || '—'}</div>
+                        <div class="fw-bold text-dark">${esc(item.batch_number || '—')}</div>
                     </div>
                     <div class="col-6 col-md-4">
                         <div class="small text-muted">Ngày sản xuất</div>
@@ -663,7 +695,7 @@
 
                     <div class="col-6 col-md-4">
                         <div class="small text-muted">Số lượng tồn</div>
-                        <div class="fw-bold fs-5 text-dark">${parseFloat(item.quantity)} ${item.unit}</div>
+                        <div class="fw-bold fs-5 text-dark">${esc(parseFloat(item.quantity))} ${esc(item.unit)}</div>
                     </div>
                     <div class="col-6 col-md-4">
                         <div class="small text-muted">Đơn giá / đơn vị</div>
@@ -676,14 +708,14 @@
 
                     <div class="col-12 col-md-6">
                         <div class="small text-muted">Vị trí lưu trữ trong nhà</div>
-                        <div class="fw-semibold text-dark"><i class="bi bi-geo-alt text-primary me-1"></i>${item.storage_location || 'Ngăn chính tủ thuốc'}</div>
+                        <div class="fw-semibold text-dark"><i class="bi bi-geo-alt text-primary me-1"></i>${esc(item.storage_location || 'Ngăn chính tủ thuốc')}</div>
                     </div>
 
                     <div class="col-12">
                         <div class="card bg-light border-0">
                             <div class="card-body p-3">
                                 <div class="fw-bold small text-dark mb-1"><i class="bi bi-card-text me-1 text-primary"></i>Ghi chú bảo quản & sử dụng:</div>
-                                <div class="small text-secondary">${item.notes || 'Không có ghi chú thêm.'}</div>
+                                <div class="small text-secondary">${esc(item.notes || 'Không có ghi chú thêm.')}</div>
                             </div>
                         </div>
                     </div>
@@ -691,14 +723,14 @@
                     ${medicine && medicine.usage_instructions ? `
                     <div class="col-12">
                         <div class="small text-muted fw-semibold mb-1"><i class="bi bi-journal-medical me-1"></i>Hướng dẫn sử dụng chung:</div>
-                        <div class="small text-dark p-2 bg-white rounded border">${medicine.usage_instructions}</div>
+                        <div class="small text-dark p-2 bg-white rounded border">${esc(medicine.usage_instructions)}</div>
                     </div>
                     ` : ''}
 
                     ${medicine && medicine.contraindications ? `
                     <div class="col-12">
                         <div class="small text-danger fw-semibold mb-1"><i class="bi bi-exclamation-diamond me-1"></i>Chống chỉ định & Thận trọng:</div>
-                        <div class="small text-dark p-2 bg-danger-subtle rounded border border-danger-subtle">${medicine.contraindications}</div>
+                        <div class="small text-dark p-2 bg-danger-subtle rounded border border-danger-subtle">${esc(medicine.contraindications)}</div>
                     </div>
                     ` : ''}
                 </div>

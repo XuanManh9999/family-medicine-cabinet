@@ -3,14 +3,21 @@
 namespace App\Http\Controllers;
 
 use App\Models\CabinetItem;
+use App\Models\Family;
 use App\Models\Medicine;
-use Carbon\Carbon;
+use App\Services\AlertScannerService;
+use App\Support\CabinetItemValidator;
+use App\Support\CsvSanitizer;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class CabinetItemController extends Controller
 {
+    /** Số dòng dữ liệu tối đa cho mỗi lần nhập file */
+    private const IMPORT_MAX_ROWS = 1000;
+
     public function index(Request $request)
     {
         $family = $request->user()->family;
@@ -94,7 +101,7 @@ class CabinetItemController extends Controller
     public function create(Request $request)
     {
         $this->ensureAdmin($request);
-        return view('cabinet.form', ['item' => new CabinetItem(), 'medicines' => Medicine::orderBy('name')->get(), 'editing' => false]);
+        return view('cabinet.form', ['item' => new CabinetItem(), 'medicines' => Medicine::with('category')->orderBy('name')->get(), 'editing' => false]);
     }
 
     public function store(Request $request)
@@ -102,8 +109,9 @@ class CabinetItemController extends Controller
         $family = $this->ensureAdmin($request);
         $data = $this->validatedData($request);
         $data['family_id'] = $family->id;
-        $data['status'] = $this->statusFor($data['expiry_date'], $data['quantity']);
+        $data['status'] = CabinetItem::computeStatus($data['expiry_date'], $data['quantity']);
         CabinetItem::create($data);
+        $this->refreshAlerts($family);
 
         return redirect()->route('cabinet.index')->with('success', 'Đã thêm thuốc vào tủ thuốc gia đình.');
     }
@@ -112,7 +120,7 @@ class CabinetItemController extends Controller
     {
         $this->ensureAdmin($request);
         $this->authorizeItem($request, $cabinetItem);
-        return view('cabinet.form', ['item' => $cabinetItem, 'medicines' => Medicine::orderBy('name')->get(), 'editing' => true]);
+        return view('cabinet.form', ['item' => $cabinetItem, 'medicines' => Medicine::with('category')->orderBy('name')->get(), 'editing' => true]);
     }
 
     public function update(Request $request, CabinetItem $cabinetItem)
@@ -120,8 +128,9 @@ class CabinetItemController extends Controller
         $family = $this->ensureAdmin($request);
         abort_unless($cabinetItem->family_id === $family->id, 404);
         $data = $this->validatedData($request);
-        $data['status'] = $this->statusFor($data['expiry_date'], $data['quantity']);
+        $data['status'] = CabinetItem::computeStatus($data['expiry_date'], $data['quantity']);
         $cabinetItem->update($data);
+        $this->refreshAlerts($family);
 
         return redirect()->route('cabinet.index')->with('success', 'Đã cập nhật thông tin thuốc.');
     }
@@ -130,11 +139,17 @@ class CabinetItemController extends Controller
     {
         $family = $this->ensureAdmin($request);
         abort_unless($cabinetItem->family_id === $family->id, 404);
-        $data = $request->validate(['quantity' => ['required', 'numeric', 'min:0', 'max:999999.99']]);
+        $data = $request->validate(['quantity' => ['required', 'numeric', 'min:0', 'max:999999.99']], [
+            'quantity.required' => 'Vui lòng nhập số lượng tồn.',
+            'quantity.numeric' => 'Số lượng tồn phải là số.',
+            'quantity.min' => 'Số lượng tồn không được âm.',
+            'quantity.max' => 'Số lượng tồn tối đa là 999.999,99.',
+        ]);
         $cabinetItem->update([
             'quantity' => $data['quantity'],
-            'status' => $this->statusFor($cabinetItem->expiry_date, $data['quantity']),
+            'status' => CabinetItem::computeStatus($cabinetItem->expiry_date, $data['quantity']),
         ]);
+        $this->refreshAlerts($family);
 
         return back()->with('success', 'Đã cập nhật số lượng tồn.');
     }
@@ -143,7 +158,9 @@ class CabinetItemController extends Controller
     {
         $family = $this->ensureAdmin($request);
         abort_unless($cabinetItem->family_id === $family->id, 404);
+        // Cảnh báo gắn với lô được gỡ tự động qua sự kiện deleting của model
         $cabinetItem->delete();
+        $this->refreshAlerts($family);
 
         return redirect()->route('cabinet.index')->with('success', 'Đã xóa lô thuốc khỏi tủ.');
     }
@@ -201,7 +218,7 @@ class CabinetItemController extends Controller
             fwrite($handle, "\xEF\xBB\xBF");
 
             // Header hàng cột
-            fputcsv($handle, [
+            CsvSanitizer::writeRow($handle, [
                 'STT',
                 'Tên thuốc / Biệt dược',
                 'Hoạt chất',
@@ -226,7 +243,7 @@ class CabinetItemController extends Controller
                 $stockStatus = $item->is_out_of_stock ? 'Hết hàng' : ($item->is_low_stock ? 'Tồn ít (≤5)' : 'Đủ dùng');
                 $totalVal = (float)$item->quantity * (float)($item->price_per_unit ?? 0);
 
-                fputcsv($handle, [
+                CsvSanitizer::writeRow($handle, [
                     $idx + 1,
                     $item->display_name,
                     $item->medicine?->active_ingredient ?: '—',
@@ -238,7 +255,7 @@ class CabinetItemController extends Controller
                     $item->expiry_remaining_text,
                     rtrim(rtrim((string)$item->quantity, '0'), '.'),
                     $item->unit,
-                    $item->price_per_unit ? (float)$item->price_per_unit : 0,
+                    $item->price_per_unit !== null ? (float)$item->price_per_unit : '',
                     $totalVal,
                     $item->storage_location ?: 'Tủ thuốc chính',
                     $expiryStatus,
@@ -267,7 +284,7 @@ class CabinetItemController extends Controller
             fwrite($handle, "\xEF\xBB\xBF");
 
             // Header hàng cột
-            fputcsv($handle, [
+            CsvSanitizer::writeRow($handle, [
                 'Tên thuốc',
                 'Hoạt chất',
                 'Số lô',
@@ -281,7 +298,7 @@ class CabinetItemController extends Controller
             ]);
 
             // Dữ liệu mẫu minh họa
-            fputcsv($handle, [
+            CsvSanitizer::writeRow($handle, [
                 'Panadol Extra Đỏ Giảm Đau',
                 'Paracetamol 500mg, Caffeine 65mg',
                 'VN-2026-01',
@@ -294,7 +311,7 @@ class CabinetItemController extends Controller
                 'Mua sẵn dự phòng hạ sốt đau đầu',
             ]);
 
-            fputcsv($handle, [
+            CsvSanitizer::writeRow($handle, [
                 'Nước muối súc họng 500ml',
                 'Natri Clorid 0.9%',
                 'NAC-2026',
@@ -307,7 +324,7 @@ class CabinetItemController extends Controller
                 'Súc họng sáng và tối',
             ]);
 
-            fputcsv($handle, [
+            CsvSanitizer::writeRow($handle, [
                 'Băng dán Urgo chống nước',
                 'Băng gạc PU chống thấm',
                 'URG-902',
@@ -332,166 +349,126 @@ class CabinetItemController extends Controller
         $family = $this->ensureAdmin($request);
 
         $request->validate([
-            'excel_file' => ['required', 'file', 'max:5120'], // max 5MB
+            'excel_file' => ['required', 'file', 'max:5120', 'extensions:csv,txt'], // max 5MB
         ], [
             'excel_file.required' => 'Vui lòng chọn file Excel hoặc CSV để tải lên.',
+            'excel_file.file' => 'File tải lên không hợp lệ.',
             'excel_file.max' => 'Dung lượng file tối đa là 5MB.',
+            'excel_file.extensions' => 'Hệ thống hỗ trợ file .csv / .txt (file bảng tính Excel lưu dưới định dạng CSV UTF-8). Vui lòng sử dụng file mẫu chuẩn của hệ thống.',
         ]);
 
-        $file = $request->file('excel_file');
-        $extension = strtolower($file->getClientOriginalExtension());
-
-        if (!in_array($extension, ['csv', 'txt'])) {
-            return back()->with('danger', 'Hệ thống hỗ trợ file .csv (file bảng tính Excel lưu dưới định dạng CSV UTF-8). Vui lòng sử dụng file mẫu chuẩn của hệ thống.');
-        }
-
-        $content = file_get_contents($file->getRealPath());
+        $content = file_get_contents($request->file('excel_file')->getRealPath());
         if ($content === false || trim($content) === '') {
             return back()->with('danger', 'File tải lên trống, vui lòng kiểm tra lại.');
         }
 
-        // Xóa BOM UTF-8 nếu có
-        $content = preg_replace('/^\xEF\xBB\xBF/', '', $content);
-        $lines = preg_split('/\r\n|\r|\n/', trim($content));
+        $content = $this->normalizeEncoding($content);
+        if ($content === null) {
+            return back()->with('danger', 'File không phải định dạng văn bản CSV (có thể là file .xlsx/.xls nhị phân). Vui lòng mở bằng Excel và "Lưu thành" CSV UTF-8 rồi tải lên lại.');
+        }
 
-        if (count($lines) < 2) {
+        $delimiter = $this->detectDelimiter($content);
+        $rows = $this->readCsvRows($content, $delimiter);
+
+        if (count($rows) < 2) {
             return back()->with('danger', 'File phải có ít nhất 1 dòng tiêu đề và 1 dòng dữ liệu.');
         }
-
-        // Tự động nhận diện phân cách: dấu phẩy, chấm phẩy hoặc tab
-        $firstLine = $lines[0];
-        $delimiter = ',';
-        if (substr_count($firstLine, ';') > substr_count($firstLine, ',')) {
-            $delimiter = ';';
-        } elseif (substr_count($firstLine, "\t") > substr_count($firstLine, ',')) {
-            $delimiter = "\t";
+        if (count($rows) - 1 > self::IMPORT_MAX_ROWS) {
+            return back()->with('danger', 'Mỗi lần chỉ nhập tối đa ' . self::IMPORT_MAX_ROWS . ' dòng dữ liệu. Vui lòng chia nhỏ file và thử lại.');
         }
 
-        $headerCols = str_getcsv($lines[0], $delimiter);
-        $headerMap = [];
-        foreach ($headerCols as $colIdx => $colName) {
-            $cleanName = mb_strtolower(trim($colName), 'UTF-8');
-            if (str_contains($cleanName, 'tên thuốc') || str_contains($cleanName, 'custom_name') || str_contains($cleanName, 'tên')) {
-                $headerMap['name'] = $colIdx;
-            } elseif (str_contains($cleanName, 'hoạt chất') || str_contains($cleanName, 'ingredient')) {
-                $headerMap['ingredient'] = $colIdx;
-            } elseif (str_contains($cleanName, 'lô') || str_contains($cleanName, 'batch')) {
-                $headerMap['batch'] = $colIdx;
-            } elseif (str_contains($cleanName, 'sản xuất') || str_contains($cleanName, 'mfg') || str_contains($cleanName, 'nsx')) {
-                $headerMap['mfg'] = $colIdx;
-            } elseif (str_contains($cleanName, 'hạn') || str_contains($cleanName, 'exp') || str_contains($cleanName, 'hsd')) {
-                $headerMap['exp'] = $colIdx;
-            } elseif (str_contains($cleanName, 'lượng') || str_contains($cleanName, 'qty') || str_contains($cleanName, 'số lượng')) {
-                $headerMap['qty'] = $colIdx;
-            } elseif (str_contains($cleanName, 'đơn vị') || str_contains($cleanName, 'unit') || str_contains($cleanName, 'đvt')) {
-                $headerMap['unit'] = $colIdx;
-            } elseif (str_contains($cleanName, 'giá') || str_contains($cleanName, 'price') || str_contains($cleanName, 'đơn giá')) {
-                $headerMap['price'] = $colIdx;
-            } elseif (str_contains($cleanName, 'vị trí') || str_contains($cleanName, 'location') || str_contains($cleanName, 'ngăn')) {
-                $headerMap['location'] = $colIdx;
-            } elseif (str_contains($cleanName, 'ghi chú') || str_contains($cleanName, 'note') || str_contains($cleanName, 'lưu ý')) {
-                $headerMap['notes'] = $colIdx;
+        [$headerLine, $headerCols] = array_shift($rows);
+        $headerMap = $this->mapImportHeaders($headerCols);
+        if (!isset($headerMap['name'], $headerMap['exp'])) {
+            return back()->with('danger', 'Không nhận diện được cột "Tên thuốc" và "Hạn sử dụng" ở dòng tiêu đề. Vui lòng sử dụng file mẫu chuẩn của hệ thống.');
+        }
+
+        // Đọc sẵn danh mục thuốc để liên kết chính xác theo tên chuẩn hóa hoặc mã thuốc
+        $medicinesByName = [];
+        $medicinesByCode = [];
+        foreach (Medicine::all(['id', 'name', 'code']) as $med) {
+            $medicinesByName[$this->normalizeKey($med->name)] ??= $med->id;
+            if ($med->code) {
+                $medicinesByCode[$this->normalizeKey($med->code)] ??= $med->id;
             }
         }
 
-        // Mặc định vị trí theo mẫu chuẩn nếu không khớp tên cột
-        $colNameIdx = $headerMap['name'] ?? 0;
-        $colIngIdx = $headerMap['ingredient'] ?? 1;
-        $colBatchIdx = $headerMap['batch'] ?? 2;
-        $colMfgIdx = $headerMap['mfg'] ?? 3;
-        $colExpIdx = $headerMap['exp'] ?? 4;
-        $colQtyIdx = $headerMap['qty'] ?? 5;
-        $colUnitIdx = $headerMap['unit'] ?? 6;
-        $colPriceIdx = $headerMap['price'] ?? 7;
-        $colLocIdx = $headerMap['location'] ?? 8;
-        $colNotesIdx = $headerMap['notes'] ?? 9;
-
-        $imported = 0;
+        $validRows = [];
         $errors = [];
+        $skipped = 0;
 
-        // Đọc sẵn danh mục thuốc để map
-        $allMedicines = Medicine::all();
+        foreach ($rows as [$lineNo, $row]) {
+            $cell = fn (string $field) => isset($headerMap[$field])
+                ? trim(CsvSanitizer::uncell((string) ($row[$headerMap[$field]] ?? '')))
+                : '';
 
-        for ($i = 1; $i < count($lines); $i++) {
-            $line = trim($lines[$i]);
-            if ($line === '') continue;
+            $customName = $cell('name');
+            $rowLabel = "Dòng {$lineNo}" . ($customName !== '' ? " ('" . mb_strimwidth($customName, 0, 60, '...') . "')" : '');
 
-            $row = str_getcsv($line, $delimiter);
-            $customName = trim($row[$colNameIdx] ?? '');
-            if ($customName === '') {
-                $errors[] = "Dòng " . ($i + 1) . ": Bỏ qua vì thiếu Tên thuốc.";
+            // Xử lý ngày tháng nghiêm ngặt (không tự "tràn" ngày như 31/02 => 03/03)
+            $rawExp = $this->emptyPlaceholder($cell('exp'));
+            $expiryDate = $rawExp === '' ? null : $this->parseStrictDate($rawExp);
+            if ($rawExp !== '' && $expiryDate === null) {
+                $errors[] = "{$rowLabel}: Hạn sử dụng '{$rawExp}' không hợp lệ (định dạng DD/MM/YYYY hoặc YYYY-MM-DD).";
+                $skipped++;
                 continue;
             }
 
-            // Xử lý hạn sử dụng
-            $rawExp = trim($row[$colExpIdx] ?? '');
-            $expiryDate = null;
-            if ($rawExp) {
-                try {
-                    if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/', $rawExp, $m)) {
-                        $expiryDate = Carbon::createFromDate((int)$m[3], (int)$m[2], (int)$m[1])->toDateString();
-                    } else {
-                        $expiryDate = Carbon::parse($rawExp)->toDateString();
-                    }
-                } catch (\Throwable $e) {
-                    $errors[] = "Dòng " . ($i + 1) . " ('{$customName}'): Hạn sử dụng '{$rawExp}' không đúng định dạng (YYYY-MM-DD hoặc DD/MM/YYYY).";
-                    continue;
-                }
-            } else {
-                $errors[] = "Dòng " . ($i + 1) . " ('{$customName}'): Thiếu hạn sử dụng.";
+            $rawMfg = $this->emptyPlaceholder($cell('mfg'));
+            $mfgDate = $rawMfg === '' ? null : $this->parseStrictDate($rawMfg);
+            if ($rawMfg !== '' && $mfgDate === null) {
+                $errors[] = "{$rowLabel}: Ngày sản xuất '{$rawMfg}' không hợp lệ (định dạng DD/MM/YYYY hoặc YYYY-MM-DD).";
+                $skipped++;
                 continue;
             }
 
-            // Xử lý ngày sản xuất
-            $rawMfg = trim($row[$colMfgIdx] ?? '');
-            $mfgDate = null;
-            if ($rawMfg) {
-                try {
-                    if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/', $rawMfg, $m)) {
-                        $mfgDate = Carbon::createFromDate((int)$m[3], (int)$m[2], (int)$m[1])->toDateString();
-                    } else {
-                        $mfgDate = Carbon::parse($rawMfg)->toDateString();
-                    }
-                } catch (\Throwable $e) {
-                    $mfgDate = null;
-                }
-            }
-
-            $quantity = isset($row[$colQtyIdx]) && is_numeric(trim($row[$colQtyIdx])) ? (float)trim($row[$colQtyIdx]) : 1;
-            $unit = trim($row[$colUnitIdx] ?? '') ?: 'viên';
-            $price = isset($row[$colPriceIdx]) && is_numeric(trim($row[$colPriceIdx])) ? (float)trim($row[$colPriceIdx]) : null;
-            $batch = trim($row[$colBatchIdx] ?? '') ?: null;
-            $location = trim($row[$colLocIdx] ?? '') ?: 'Tủ thuốc gia đình';
-            $notes = trim($row[$colNotesIdx] ?? '') ?: null;
-
-            // Tìm thuốc tương ứng trong danh mục nếu có
-            $matchedMed = $allMedicines->first(function ($med) use ($customName) {
-                return mb_stripos($customName, $med->name) !== false || mb_stripos($med->name, $customName) !== false;
-            });
-
-            // Tạo bản ghi thuốc vào tủ
-            CabinetItem::create([
-                'family_id' => $family->id,
-                'medicine_id' => $matchedMed?->id,
+            $data = [
                 'custom_name' => $customName,
-                'batch_number' => $batch,
+                'batch_number' => $this->emptyPlaceholder($cell('batch')) ?: null,
                 'manufacturing_date' => $mfgDate,
                 'expiry_date' => $expiryDate,
-                'quantity' => $quantity,
-                'unit' => $unit,
-                'storage_location' => $location,
-                'price_per_unit' => $price,
-                'status' => $this->statusFor($expiryDate, $quantity),
-                'notes' => $notes,
-            ]);
+                'quantity' => $this->parseNumber($cell('qty')),
+                'unit' => $cell('unit') ?: 'viên',
+                'storage_location' => $cell('location') ?: 'Tủ thuốc gia đình',
+                'price_per_unit' => $this->parseNumber($this->emptyPlaceholder($cell('price'))),
+                'notes' => $this->emptyPlaceholder($cell('notes')) ?: null,
+            ];
 
-            $imported++;
+            $validator = $this->makeItemValidator($data, false);
+            if ($validator->fails()) {
+                $errors[] = "{$rowLabel}: " . implode(' ', $validator->errors()->all());
+                $skipped++;
+                continue;
+            }
+
+            // Liên kết danh mục thuốc chuẩn: khớp CHÍNH XÁC tên (không phân biệt hoa thường/khoảng trắng) hoặc mã thuốc
+            $key = $this->normalizeKey($customName);
+            $data['medicine_id'] = $medicinesByName[$key] ?? $medicinesByCode[$key] ?? null;
+            $data['family_id'] = $family->id;
+            $data['status'] = CabinetItem::computeStatus($data['expiry_date'], $data['quantity']);
+
+            $validRows[] = $data;
+        }
+
+        // Ghi toàn bộ trong 1 transaction: lỗi bất ngờ sẽ không để lại dữ liệu nhập dở dang
+        DB::transaction(function () use ($validRows) {
+            foreach ($validRows as $data) {
+                CabinetItem::create($data);
+            }
+        });
+
+        $imported = count($validRows);
+        if ($imported > 0) {
+            $this->refreshAlerts($family);
         }
 
         $message = "Đã nhập thành công {$imported} loại thuốc vào tủ thuốc gia đình!";
         if (!empty($errors)) {
-            $message .= " (Gặp " . count($errors) . " dòng lỗi: " . implode('; ', array_slice($errors, 0, 3)) . (count($errors) > 3 ? '...' : '') . ")";
-            return redirect()->route('cabinet.index')->with('warning', $message);
+            $message .= " Bỏ qua {$skipped} dòng lỗi: " . implode('; ', array_slice($errors, 0, 3)) . (count($errors) > 3 ? '...' : '');
+
+            return redirect()->route('cabinet.index')
+                ->with($imported > 0 ? 'warning' : 'danger', $message)
+                ->with('import_errors', array_slice($errors, 0, 50));
         }
 
         return redirect()->route('cabinet.index')->with('success', $message);
@@ -499,38 +476,241 @@ class CabinetItemController extends Controller
 
     private function validatedData(Request $request): array
     {
-        $validator = Validator::make($request->all(), [
-            'medicine_id' => ['nullable', 'integer', Rule::exists('medicines', 'id')],
-            'custom_name' => ['required', 'string', 'max:255'],
-            'batch_number' => ['nullable', 'string', 'max:255'],
-            'manufacturing_date' => ['nullable', 'date', 'before_or_equal:today'],
-            'expiry_date' => ['required', 'date'],
-            'quantity' => ['required', 'numeric', 'min:0', 'max:999999.99'],
-            'unit' => ['required', 'string', 'max:30'],
-            'storage_location' => ['nullable', 'string', 'max:255'],
-            'price_per_unit' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
-            'notes' => ['nullable', 'string', 'max:5000'],
-        ], [
-            'manufacturing_date.before_or_equal' => 'Ngày sản xuất không thể ở tương lai.',
-        ]);
-
-        $validator->after(function ($validator) use ($request) {
-            $manufactured = $request->input('manufacturing_date');
-            $expires = $request->input('expiry_date');
-            if ($manufactured && $expires && strtotime($expires) < strtotime($manufactured)) {
-                $validator->errors()->add('expiry_date', 'Hạn sử dụng phải bằng hoặc sau ngày sản xuất.');
-            }
-        });
-
-        return $validator->validate();
+        return $this->makeItemValidator($request->all(), true)->validate();
     }
 
-    private function statusFor(string|Carbon $expiryDate, int|float|string $quantity): string
+    /**
+     * Bộ luật kiểm tra dữ liệu lô thuốc dùng chung cho form và nhập file
+     */
+    private function makeItemValidator(array $input, bool $withMedicine): \Illuminate\Validation\Validator
     {
-        $expiry = Carbon::parse($expiryDate)->startOfDay();
-        if ($expiry->lt(today())) return 'qua_han';
-        if ($expiry->lte(today()->addDays(30))) return 'sap_het_han';
-        return (float) $quantity <= 0 ? 'het_hang' : 'con_han';
+        return CabinetItemValidator::make($input, $withMedicine);
+    }
+
+    /**
+     * Quét lại cảnh báo của gia đình sau khi tủ thuốc thay đổi (gỡ cảnh báo cũ không còn đúng)
+     */
+    private function refreshAlerts(Family $family): void
+    {
+        app(AlertScannerService::class)->scanFamily($family);
+    }
+
+    /**
+     * Chuyển nội dung file về UTF-8 (hỗ trợ UTF-8 BOM, UTF-16 LE/BE BOM, Windows-1258/1252). Trả về null nếu là file nhị phân.
+     */
+    private function normalizeEncoding(string $content): ?string
+    {
+        if (str_starts_with($content, "\xFF\xFE")) {
+            $content = mb_convert_encoding(substr($content, 2), 'UTF-8', 'UTF-16LE');
+        } elseif (str_starts_with($content, "\xFE\xFF")) {
+            $content = mb_convert_encoding(substr($content, 2), 'UTF-8', 'UTF-16BE');
+        } else {
+            $content = preg_replace('/^\xEF\xBB\xBF/', '', $content);
+
+            // File nhị phân (xlsx/xls/zip...) chứa byte NUL
+            if (str_contains($content, "\0")) {
+                return null;
+            }
+
+            if (!mb_check_encoding($content, 'UTF-8')) {
+                $converted = function_exists('iconv') ? @iconv('CP1258', 'UTF-8//IGNORE', $content) : false;
+                $content = $converted !== false && $converted !== ''
+                    ? $converted
+                    : mb_convert_encoding($content, 'UTF-8', 'Windows-1252');
+            }
+        }
+
+        if (str_contains($content, "\0")) {
+            return null;
+        }
+
+        return $this->composeVietnamese($content);
+    }
+
+    /**
+     * Chuẩn hóa tổ hợp dấu tiếng Việt (NFD => NFC). Windows-1258 & macOS lưu dấu thanh dạng ký tự tổ hợp rời.
+     */
+    private function composeVietnamese(string $content): string
+    {
+        if (class_exists(\Normalizer::class)) {
+            return \Normalizer::normalize($content, \Normalizer::FORM_C) ?: $content;
+        }
+
+        // Dự phòng khi máy chủ không có extension intl: ghép nguyên âm + dấu thanh (huyền, sắc, ngã, hỏi, nặng)
+        static $map = null;
+        if ($map === null) {
+            $marks = ["\u{0300}", "\u{0301}", "\u{0303}", "\u{0309}", "\u{0323}"];
+            $table = [
+                'a' => 'àáãảạ', 'ă' => 'ằắẵẳặ', 'â' => 'ầấẫẩậ', 'e' => 'èéẽẻẹ', 'ê' => 'ềếễểệ', 'i' => 'ìíĩỉị',
+                'o' => 'òóõỏọ', 'ô' => 'ồốỗổộ', 'ơ' => 'ờớỡởợ', 'u' => 'ùúũủụ', 'ư' => 'ừứữửự', 'y' => 'ỳýỹỷỵ',
+                'A' => 'ÀÁÃẢẠ', 'Ă' => 'ẰẮẴẲẶ', 'Â' => 'ẦẤẪẨẬ', 'E' => 'ÈÉẼẺẸ', 'Ê' => 'ỀẾỄỂỆ', 'I' => 'ÌÍĨỈỊ',
+                'O' => 'ÒÓÕỎỌ', 'Ô' => 'ỒỐỖỔỘ', 'Ơ' => 'ỜỚỠỞỢ', 'U' => 'ÙÚŨỦỤ', 'Ư' => 'ỪỨỮỬỰ', 'Y' => 'ỲÝỸỶỴ',
+            ];
+            $map = [];
+            foreach ($table as $base => $composed) {
+                foreach (mb_str_split($composed) as $i => $char) {
+                    $map[$base . $marks[$i]] = $char;
+                }
+            }
+        }
+
+        return strtr($content, $map);
+    }
+
+    /**
+     * Nhận diện ký tự phân cách (dấu phẩy, chấm phẩy hoặc tab) dựa trên dòng tiêu đề
+     */
+    private function detectDelimiter(string $content): string
+    {
+        $firstLine = strtok($content, "\r\n") ?: '';
+        $counts = [',' => substr_count($firstLine, ','), ';' => substr_count($firstLine, ';'), "\t" => substr_count($firstLine, "\t")];
+        arsort($counts);
+
+        return reset($counts) > 0 ? array_key_first($counts) : ',';
+    }
+
+    /**
+     * Đọc các dòng CSV (hỗ trợ ô có dấu ngoặc kép chứa xuống dòng), bỏ qua dòng trống hoàn toàn
+     *
+     * @return array<int, array{0:int, 1:array}> [số dòng trong file, các ô]
+     */
+    private function readCsvRows(string $content, string $delimiter): array
+    {
+        $stream = fopen('php://temp', 'r+');
+        fwrite($stream, $content);
+        rewind($stream);
+
+        $rows = [];
+        $lineNo = 0;
+        while (($row = fgetcsv($stream, 0, $delimiter, '"', '')) !== false) {
+            $lineNo++;
+            if ($row === [null] || count(array_filter($row, fn ($v) => trim((string) $v) !== '')) === 0) {
+                continue;
+            }
+            $rows[] = [$lineNo, $row];
+            if (count($rows) > self::IMPORT_MAX_ROWS + 1) {
+                break; // Đủ để báo vượt giới hạn, không đọc tiếp
+            }
+        }
+        fclose($stream);
+
+        return $rows;
+    }
+
+    /**
+     * Ánh xạ cột tiêu đề => trường dữ liệu. Cột khớp ĐẦU TIÊN được giữ, các cột thông tin phụ của file xuất bị bỏ qua.
+     */
+    private function mapImportHeaders(array $headerCols): array
+    {
+        $map = [];
+        foreach ($headerCols as $colIdx => $colName) {
+            $name = mb_strtolower(trim(preg_replace('/^\xEF\xBB\xBF/', '', (string) $colName)), 'UTF-8');
+            $name = trim(preg_replace('/\s*\(.*?\)\s*/u', ' ', $name)); // bỏ chú thích trong ngoặc
+            $name = preg_replace('/\s+/u', ' ', $name);
+
+            $field = $this->headerField($name);
+            if ($field !== null && !isset($map[$field])) {
+                $map[$field] = $colIdx;
+            }
+        }
+
+        return $map;
+    }
+
+    private function headerField(string $name): ?string
+    {
+        if ($name === '') {
+            return null;
+        }
+
+        // Cột chỉ mang tính thông tin trong file xuất => bỏ qua
+        foreach (['stt', 'thời gian còn lại', 'tình trạng', 'tổng giá trị', 'thành tiền', 'nhóm dược lý', 'hàm lượng', 'nồng độ', 'trạng thái'] as $ignored) {
+            if (str_starts_with($name, $ignored)) {
+                return null;
+            }
+        }
+
+        $words = preg_split('/[\s\/_\-]+/u', $name);
+
+        return match (true) {
+            str_starts_with($name, 'tên') || in_array($name, ['custom_name', 'name', 'biệt dược', 'medicine'], true) => 'name',
+            str_contains($name, 'hoạt chất') || str_contains($name, 'ingredient') => 'ingredient',
+            str_starts_with($name, 'số lô') || in_array('lô', $words, true) || str_contains($name, 'batch') => 'batch',
+            str_contains($name, 'ngày sản xuất') || in_array($name, ['nsx', 'mfg', 'manufacturing_date'], true) || str_contains($name, 'manufactur') => 'mfg',
+            str_contains($name, 'hạn sử dụng') || str_contains($name, 'hạn dùng') || in_array($name, ['hsd', 'exp', 'expiry', 'expiry_date', 'hết hạn', 'ngày hết hạn'], true) => 'exp',
+            str_starts_with($name, 'số lượng') || in_array($name, ['sl', 'qty', 'quantity', 'tồn kho'], true) => 'qty',
+            str_starts_with($name, 'đơn vị') || in_array($name, ['đvt', 'unit'], true) => 'unit',
+            str_starts_with($name, 'đơn giá') || in_array($name, ['giá', 'price', 'price_per_unit', 'giá bán'], true) => 'price',
+            str_starts_with($name, 'vị trí') || in_array($name, ['location', 'storage_location', 'nơi cất'], true) || str_starts_with($name, 'ngăn') => 'location',
+            str_starts_with($name, 'ghi chú') || in_array($name, ['note', 'notes', 'lưu ý'], true) => 'notes',
+            default => null,
+        };
+    }
+
+    /**
+     * Phân tích ngày nghiêm ngặt: DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY, YYYY-MM-DD, YYYY/MM/DD. Trả về Y-m-d hoặc null nếu sai.
+     */
+    private function parseStrictDate(string $raw): ?string
+    {
+        $raw = trim($raw);
+        if (preg_match('/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/', $raw, $m)) {
+            [$year, $month, $day] = [(int) $m[1], (int) $m[2], (int) $m[3]];
+        } elseif (preg_match('/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/', $raw, $m)) {
+            [$day, $month, $year] = [(int) $m[1], (int) $m[2], (int) $m[3]];
+        } else {
+            return null;
+        }
+
+        if ($year < 1900 || $year > 2200 || !checkdate($month, $day, $year)) {
+            return null;
+        }
+
+        return sprintf('%04d-%02d-%02d', $year, $month, $day);
+    }
+
+    /**
+     * Chuẩn hóa số kiểu Việt Nam/quốc tế: "2.500" => 2500, "2,500" => 2500, "2,5" => 2.5, "1.234,5" => 1234.5.
+     * Trả lại chuỗi gốc nếu không phải số để luật "numeric" báo lỗi rõ ràng.
+     */
+    private function parseNumber(string $raw): string|float|null
+    {
+        $value = preg_replace('/\s+|(vnđ|vnd|đ)$/iu', '', trim($raw));
+        if ($value === '' || $value === null) {
+            return null;
+        }
+
+        $hasDot = str_contains($value, '.');
+        $hasComma = str_contains($value, ',');
+
+        if ($hasDot && $hasComma) {
+            // Dấu xuất hiện sau cùng là dấu thập phân
+            $value = strrpos($value, ',') > strrpos($value, '.')
+                ? str_replace(['.', ','], ['', '.'], $value)
+                : str_replace(',', '', $value);
+        } elseif ($hasDot) {
+            if (preg_match('/^-?\d{1,3}(\.\d{3})+$/', $value)) {
+                $value = str_replace('.', '', $value);
+            }
+        } elseif ($hasComma) {
+            $value = preg_match('/^-?\d{1,3}(,\d{3})+$/', $value)
+                ? str_replace(',', '', $value)
+                : str_replace(',', '.', $value);
+        }
+
+        return is_numeric($value) ? (float) $value : $raw;
+    }
+
+    /**
+     * Các ký hiệu "trống" mà file xuất dùng (—, -, N/A) được coi như ô rỗng
+     */
+    private function emptyPlaceholder(string $value): string
+    {
+        return in_array(mb_strtolower($value, 'UTF-8'), ['—', '–', '-', 'n/a', 'không'], true) ? '' : $value;
+    }
+
+    private function normalizeKey(string $value): string
+    {
+        return preg_replace('/\s+/u', ' ', mb_strtolower(trim($value), 'UTF-8'));
     }
 
     private function ensureFamily(Request $request)
@@ -543,7 +723,7 @@ class CabinetItemController extends Controller
     private function ensureAdmin(Request $request)
     {
         $family = $this->ensureFamily($request);
-        abort_unless($request->user()->canManageCabinet(), 403, 'Chỉ Chủ hộ hoặc Quản trị viên hệ thống mới có quyền thay đổi tủ thuốc gia đình.');
+        abort_unless($request->user()->canManageCabinet(), 403, 'Chỉ Bác sĩ/Người chăm sóc y tế hoặc Quản trị viên hệ thống mới có quyền thay đổi tủ thuốc gia đình.');
         return $family;
     }
 

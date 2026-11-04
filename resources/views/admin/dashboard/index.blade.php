@@ -30,6 +30,36 @@
     </div>
 </div>
 
+<!-- BỘ LỌC THỜI GIAN -->
+<div class="admin-card mb-3">
+    <div class="admin-card-body p-2 px-3">
+        <form method="GET" action="{{ route('admin.dashboard') }}" class="row g-2 align-items-center">
+            @include('admin.partials.date-filter', ['dateFilterLabel' => 'Thời gian', 'yearOptions' => $yearOptions])
+            <div class="col-12 col-md-auto d-flex gap-1">
+                <button type="submit" class="btn btn-sm btn-primary">Xem thống kê</button>
+                @if ($dateFilter->isActive())
+                    <a href="{{ route('admin.dashboard') }}" class="btn btn-sm btn-outline-secondary" title="Xóa bộ lọc">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </a>
+                @endif
+            </div>
+        </form>
+
+        @if ($periodStats)
+            <div class="d-flex flex-wrap gap-3 border-top mt-2 pt-2 small">
+                <span class="text-muted fw-semibold"><i class="bi bi-clock-history me-1"></i>Phát sinh trong kỳ {{ $dateFilter->label() }}:</span>
+                <span><strong class="text-primary">{{ number_format($periodStats['families']) }}</strong> hộ gia đình mới</span>
+                <span><strong class="text-info">{{ number_format($periodStats['users']) }}</strong> tài khoản mới</span>
+                <span><strong class="text-success">{{ number_format($periodStats['members']) }}</strong> hồ sơ sức khỏe</span>
+                <span><strong class="text-warning-emphasis">{{ number_format($periodStats['treatment_courses']) }}</strong> đơn điều trị</span>
+                <span><strong class="text-dark">{{ number_format($periodStats['cabinet_items']) }}</strong> lô thuốc nhập tủ</span>
+                <span><strong class="text-danger">{{ number_format($periodStats['alerts']) }}</strong> cảnh báo</span>
+                <span><strong class="text-success">{{ number_format($periodStats['expenses'], 0, ',', '.') }} đ</strong> chi phí y tế</span>
+            </div>
+        @endif
+    </div>
+</div>
+
 <!-- SYSTEM HEALTH STATUS ROW -->
 <div class="row g-2 mb-3">
     <div class="col-6 col-md-3">
@@ -74,13 +104,40 @@
                 <span class="badge rounded-circle {{ $systemHealth['gemini_configured'] ? 'bg-success' : 'bg-secondary' }} p-1" style="width: 10px; height: 10px; display: inline-block;"></span>
                 <div>
                     <div class="text-muted" style="font-size: 11px; text-transform: uppercase; font-weight: 600;">AI Dược sĩ Trợ lý</div>
-                    <div class="fw-bold text-dark small">{{ $systemHealth['gemini_configured'] ? 'Gemini 1.5 Flash' : 'Chưa cấu hình Key' }}</div>
+                    <div class="fw-bold text-dark small">{{ $systemHealth['gemini_configured'] ? $systemHealth['gemini_model'] : 'Chưa cấu hình Key (dùng luật cục bộ)' }}</div>
                 </div>
             </div>
             <i class="bi bi-robot fs-4 text-warning opacity-75"></i>
         </div>
     </div>
 </div>
+
+<!-- TRẠNG THÁI BỘ LẬP LỊCH (NHẮC UỐNG THUỐC & QUÉT HẰNG NGÀY) -->
+@if ($systemHealth['scheduler_running'])
+    <div class="alert alert-success py-2 px-3 mb-3 small d-flex flex-wrap align-items-center gap-2">
+        <i class="bi bi-clock-history"></i>
+        <span><strong>Bộ lập lịch đang hoạt động</strong> – nhắc uống thuốc chạy lần cuối lúc {{ $systemHealth['scheduler_last_run']->format('H:i d/m/Y') }}.</span>
+        <span class="text-muted ms-md-auto">
+            Quét tủ thuốc hằng ngày: {{ $systemHealth['cabinet_scan_last_run']?->format('H:i d/m/Y') ?? 'chưa chạy' }}
+            · Mail: {{ $systemHealth['mail_driver'] === 'log' ? 'ghi vào log (chưa gửi thật)' : strtoupper($systemHealth['mail_driver']) }}
+        </span>
+    </div>
+@else
+    <div class="alert alert-warning py-2 px-3 mb-3 small">
+        <div class="d-flex align-items-center gap-2 mb-1">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <strong>Bộ lập lịch chưa chạy</strong> – nhắc uống thuốc và quét hạn dùng hằng ngày sẽ KHÔNG tự động thực hiện.
+        </div>
+        <div class="text-muted">
+            @if ($systemHealth['scheduler_last_run'])
+                Lần chạy cuối: {{ $systemHealth['scheduler_last_run']->format('H:i d/m/Y') }}.
+            @endif
+            Trên Windows/XAMPP: chạy <code>scripts\windows\register-scheduler-task.bat</code> một lần (chạy ngầm mỗi phút),
+            hoặc mở <code>scripts\windows\run-scheduler.bat</code> và giữ cửa sổ khi demo.
+            Máy chủ Linux: thêm cron <code>* * * * * php artisan schedule:run</code>.
+        </div>
+    </div>
+@endif
 
 <!-- KPI CARDS ROW -->
 <div class="row g-3 mb-3">
@@ -152,7 +209,7 @@
         <div class="admin-card h-100">
             <div class="admin-card-header d-flex justify-content-between align-items-center">
                 <span>
-                    <i class="bi bi-graph-up text-primary me-2"></i>Tốc độ Tăng trưởng Hộ gia đình (Năm {{ $currentYear }})
+                    <i class="bi bi-graph-up text-primary me-2"></i>Tăng trưởng Hộ gia đình &amp; Tài khoản (Năm {{ $currentYear }})
                 </span>
                 <span class="badge bg-primary-subtle text-primary">Theo tháng</span>
             </div>
@@ -200,7 +257,7 @@
         <div class="admin-card">
             <div class="admin-card-header">
                 <span class="text-dark"><i class="bi bi-houses text-success me-2"></i>Hộ Gia đình mới đăng ký gần đây</span>
-                <a href="{{ route('admin.families.index') }}" class="small text-decoration-none">Xem toàn bộ ({{ $totalFamilies }})</a>
+                <a href="{{ route('admin.families.index', request()->only(['period', 'date', 'month', 'year', 'from', 'to'])) }}" class="small text-decoration-none">Xem toàn bộ ({{ $totalFamilies }})</a>
             </div>
             <div class="table-responsive">
                 <table class="table table-admin mb-0">
@@ -258,7 +315,7 @@
         <div class="admin-card mb-3">
             <div class="admin-card-header">
                 <span class="text-dark"><i class="bi bi-people text-info me-2"></i>Tài khoản người dùng mới</span>
-                <a href="{{ route('admin.users.index') }}" class="small text-decoration-none">Quản lý ({{ $totalUsers }})</a>
+                <a href="{{ route('admin.users.index', request()->only(['period', 'date', 'month', 'year', 'from', 'to'])) }}" class="small text-decoration-none">Quản lý ({{ $totalUsers }})</a>
             </div>
             <div class="table-responsive">
                 <table class="table table-admin mb-0">
@@ -305,7 +362,7 @@
         <div class="admin-card">
             <div class="admin-card-header">
                 <span class="text-dark"><i class="bi bi-capsule text-danger me-2"></i>Dược thư Master Data mới thêm</span>
-                <a href="{{ route('admin.medicines.index') }}" class="small text-decoration-none">Dược thư ({{ $totalMedicines }})</a>
+                <a href="{{ route('admin.medicines.index', request()->only(['period', 'date', 'month', 'year', 'from', 'to'])) }}" class="small text-decoration-none">Dược thư ({{ $totalMedicines }})</a>
             </div>
             <div class="list-group list-group-flush">
                 @forelse ($recentMedicines as $med)
@@ -341,6 +398,7 @@
         if (ctxMonthly) {
             const months = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'];
             const monthlyData = @json($monthlyFamiliesData);
+            const monthlyUsersData = @json($monthlyUsersData);
 
             new Chart(ctxMonthly, {
                 type: 'line',
@@ -358,17 +416,31 @@
                         pointBorderColor: '#ffffff',
                         pointRadius: 4,
                         pointHoverRadius: 6,
+                    }, {
+                        label: 'Tài khoản mới',
+                        data: monthlyUsersData,
+                        borderColor: '#0891b2',
+                        backgroundColor: 'rgba(8, 145, 178, 0.05)',
+                        fill: false,
+                        tension: 0.35,
+                        borderWidth: 2,
+                        borderDash: [5, 4],
+                        pointBackgroundColor: '#0891b2',
+                        pointBorderColor: '#ffffff',
+                        pointRadius: 3,
+                        pointHoverRadius: 5,
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { display: false },
+                        legend: { display: true, position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
                         tooltip: {
                             callbacks: {
                                 label: function(context) {
-                                    return ' Đăng ký: ' + context.parsed.y + ' gia đình';
+                                    const unit = context.datasetIndex === 0 ? ' gia đình' : ' tài khoản';
+                                    return ' ' + context.dataset.label + ': ' + context.parsed.y + unit;
                                 }
                             }
                         }

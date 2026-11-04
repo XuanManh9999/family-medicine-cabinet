@@ -1,20 +1,30 @@
 @extends('layouts.app')
 
-@section('title', $editing ? 'Cập nhật thuốc - Tủ thuốc gia đình' : 'Thêm thuốc vào tủ - Tủ thuốc gia đình')
+{{--
+    Form dùng chung cho: thêm / sửa lô thuốc (Bác sĩ, Admin) và đề nghị nhập thuốc / duyệt đề nghị (requestMode).
+    Biến tùy chọn: $pageTitle, $formHeading, $formIntro, $formAction, $formMethod, $backUrl, $submitLabel, $extraPartial
+--}}
+@php
+    $formAction = $formAction ?? ($editing ? route('cabinet.items.update', $item) : route('cabinet.items.store'));
+    $formMethod = $formMethod ?? ($editing ? 'PUT' : 'POST');
+    $backUrl = $backUrl ?? route('cabinet.index');
+@endphp
+
+@section('title', $pageTitle ?? ($editing ? 'Cập nhật thuốc - Tủ thuốc gia đình' : 'Thêm thuốc vào tủ - Tủ thuốc gia đình'))
 
 @section('content')
 <!-- Header và Điều hướng -->
 <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
     <div>
-        <a href="{{ route('cabinet.index') }}" class="text-decoration-none text-muted small d-inline-flex align-items-center mb-1">
-            <i class="bi bi-arrow-left me-1"></i> Quay lại danh sách tủ thuốc
+        <a href="{{ $backUrl }}" class="text-decoration-none text-muted small d-inline-flex align-items-center mb-1">
+            <i class="bi bi-arrow-left me-1"></i> Quay lại danh sách
         </a>
         <h1 class="h4 fw-bold text-dark mb-0">
             <i class="bi {{ $editing ? 'bi-pencil-square text-primary' : 'bi-plus-circle text-success' }} me-1"></i>
-            {{ $editing ? 'Cập nhật lô thuốc: ' . $item->display_name : 'Thêm thuốc mới vào tủ thuốc' }}
+            {{ $formHeading ?? ($editing ? 'Cập nhật lô thuốc: ' . $item->display_name : 'Thêm thuốc mới vào tủ thuốc') }}
         </h1>
         <div class="text-muted small">
-            Quản lý chi tiết từng lô thuốc, kiểm soát chặt chẽ hạn sử dụng và số lượng tồn kho an toàn cho cả gia đình.
+            {{ $formIntro ?? 'Quản lý chi tiết từng lô thuốc, kiểm soát chặt chẽ hạn sử dụng và số lượng tồn kho an toàn cho cả gia đình.' }}
         </div>
     </div>
 </div>
@@ -22,9 +32,9 @@
 <div class="row g-3">
     <!-- CỘT TRÁI: FORM NHẬP LIỆU CHUẨN ERP Y TẾ (8 CỘT) -->
     <div class="col-12 col-lg-8">
-        <form method="POST" action="{{ $editing ? route('cabinet.items.update', $item) : route('cabinet.items.store') }}" id="cabinetForm">
+        <form method="POST" action="{{ $formAction }}" id="cabinetForm">
             @csrf
-            @if ($editing) @method('PUT') @endif
+            @if ($formMethod !== 'POST') @method($formMethod) @endif
 
             <!-- 1. ĐỊNH DANH THUỐC & DƯỢC THƯ -->
             <div class="content-card mb-3">
@@ -155,7 +165,7 @@
                                 Số lượng tồn kho <span class="text-danger">*</span>
                             </label>
                             <input id="quantity" name="quantity" type="number" min="0" max="999999.99" step="0.01" required
-                                   value="{{ old('quantity', $item->exists ? rtrim(rtrim((string) $item->quantity, '0'), '.') : '1') }}"
+                                   value="{{ old('quantity', $item->quantity !== null ? rtrim(rtrim((string) $item->quantity, '0'), '.') : '1') }}"
                                    class="form-control @error('quantity') is-invalid @enderror">
                             @error('quantity')<div class="invalid-feedback">{{ $message }}</div>@enderror
                             <div id="stockNotice" class="small mt-1"></div>
@@ -202,23 +212,31 @@
                 <div class="content-card-body p-3">
                     <textarea id="notes" name="notes" rows="3" maxlength="5000"
                               class="form-control @error('notes') is-invalid @enderror"
-                              placeholder="Ví dụ: Uống sau bữa ăn sáng khi đau rát thượng vị. Bảo quản nhiệt độ mát...">{!! old('notes', $item->notes) !!}</textarea>
+                              placeholder="Ví dụ: Uống sau bữa ăn sáng khi đau rát thượng vị. Bảo quản nhiệt độ mát...">{{ old('notes', $item->notes) }}</textarea>
                     @error('notes')<div class="invalid-feedback">{{ $message }}</div>@enderror
                 </div>
             </div>
 
+            @isset($extraPartial)
+                @include($extraPartial)
+            @endisset
+
             <!-- Thanh nút bấm hành động -->
             <div class="content-card">
                 <div class="content-card-body p-3 d-flex justify-content-between align-items-center">
-                    <a href="{{ route('cabinet.index') }}" class="btn btn-outline-secondary">
+                    <a href="{{ $backUrl }}" class="btn btn-outline-secondary">
                         <i class="bi bi-x-lg me-1"></i>Hủy bỏ
                     </a>
                     <button type="submit" class="btn btn-erp-primary px-4">
-                        <i class="bi bi-check2-circle me-1"></i>{{ $editing ? 'Lưu thay đổi thuốc' : 'Lưu vào tủ thuốc gia đình' }}
+                        <i class="bi bi-check2-circle me-1"></i>{{ $submitLabel ?? ($editing ? 'Lưu thay đổi thuốc' : 'Lưu vào tủ thuốc gia đình') }}
                     </button>
                 </div>
             </div>
         </form>
+
+        @isset($afterFormPartial)
+            @include($afterFormPartial)
+        @endisset
     </div>
 
     <!-- CỘT PHẢI: LIVE PREVIEW NHÃN THUỐC & CẨM NĂNG BẢO QUẢN (4 CỘT) -->
@@ -303,6 +321,13 @@
 
 @push('scripts')
 <script>
+    // Mã hóa HTML trước khi chèn chuỗi người dùng vào innerHTML
+    function esc(value) {
+        const div = document.createElement('div');
+        div.textContent = value === null || value === undefined ? '' : String(value);
+        return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
     const nameInput = document.getElementById('custom_name');
     const medSelect = document.getElementById('medicine_id');
     const batchInput = document.getElementById('batch_number');
@@ -338,7 +363,7 @@
 
         // Vị trí
         const locVal = locInput.value.trim();
-        pLoc.innerHTML = '<i class="bi bi-geo-alt text-primary me-1"></i>' + (locVal || 'Ngăn tủ chính');
+        pLoc.innerHTML = '<i class="bi bi-geo-alt text-primary me-1"></i>' + esc(locVal || 'Ngăn tủ chính');
 
         // Số lượng & Đơn vị
         const qtyVal = parseFloat(qtyInput.value) || 0;
@@ -356,12 +381,13 @@
         // Hạn sử dụng
         const expVal = expiryInput.value;
         if (expVal) {
-            const expDate = new Date(expVal);
+            // Parse theo giờ địa phương (new Date('YYYY-MM-DD') là UTC => lệch 1 ngày)
+            const expDate = new Date(expVal + 'T00:00:00');
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
             const diffTime = expDate - today;
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
             pExpiry.innerText = expDate.toLocaleDateString('vi-VN');
 
@@ -422,7 +448,7 @@
         }
 
         pCategory.innerText = medCat;
-        pIngredient.innerHTML = '<strong>Hoạt chất:</strong> ' + medIng + (medConc ? ' · ' + medConc : '');
+        pIngredient.innerHTML = '<strong>Hoạt chất:</strong> ' + esc(medIng) + (medConc ? ' · ' + esc(medConc) : '');
         updatePreview();
     });
 
@@ -459,7 +485,7 @@
             pCategory.innerText = opt.dataset.category || 'Dược phẩm dùng chung';
             const ing = opt.dataset.ingredient || '';
             const conc = opt.dataset.concentration || '';
-            pIngredient.innerHTML = ing ? '<strong>Hoạt chất:</strong> ' + ing + (conc ? ' · ' + conc : '') : 'Hoạt chất: Chưa xác định';
+            pIngredient.innerHTML = ing ? '<strong>Hoạt chất:</strong> ' + esc(ing) + (conc ? ' · ' + esc(conc) : '') : 'Hoạt chất: Chưa xác định';
         }
         updatePreview();
     });

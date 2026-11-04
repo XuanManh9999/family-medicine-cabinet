@@ -143,15 +143,20 @@
                                     <h6 class="fw-bold text-dark mb-1" id="resDiagnosis">Chẩn đoán: --</h6>
                                     <div class="small text-muted" id="resDoctor">Bác sĩ / Nơi khám: --</div>
                                 </div>
-                                <a href="{{ route('treatment-courses.create') }}" class="btn btn-sm btn-erp-primary text-nowrap">
-                                    <i class="bi bi-journal-plus me-1"></i>Tạo đợt điều trị mới
-                                </a>
+                                @if (auth()->user()->canManageTreatments())
+                                    <a href="{{ route('treatment-courses.create') }}" class="btn btn-sm btn-erp-primary text-nowrap">
+                                        <i class="bi bi-journal-plus me-1"></i>Tạo đợt điều trị mới
+                                    </a>
+                                @endif
                             </div>
                             <div class="small text-dark mt-2 border-top pt-2" id="resSummary">
                                 Tóm tắt: --
                             </div>
                         </div>
                     </div>
+
+                    <!-- CẢNH BÁO DỮ LIỆU MINH HỌA (khi chưa đọc được ảnh thật) -->
+                    <div id="ocrMockNotice" class="alert alert-warning border-warning mb-3 py-2 px-3 small d-none" role="alert"></div>
 
                     <!-- SAFETY CHECK ALERT -->
                     <div id="safetyAlertBox" class="alert mb-3 py-2 px-3 small d-none" role="alert">
@@ -386,16 +391,31 @@
         document.getElementById('resDoctor').innerText = 'Bác sĩ / Nơi khám: ' + (ocr.hospital_doctor || 'Đơn thuốc bệnh viện');
         document.getElementById('resSummary').innerText = 'Tóm tắt: ' + (ocr.plain_language_summary || 'Đơn thuốc điều trị ngoại trú.');
 
+        // Kết quả minh họa (chưa đọc được ảnh thật) phải được cảnh báo rõ ràng
+        const mockBox = document.getElementById('ocrMockNotice');
+        if (mockBox) {
+            if (ocr.is_mock) {
+                mockBox.innerHTML = '<strong><i class="bi bi-exclamation-octagon-fill me-1"></i>DỮ LIỆU MINH HỌA:</strong> ' + escapeHtml(ocr.mock_notice || 'Kết quả này không phải nội dung ảnh của bạn.');
+                mockBox.classList.remove('d-none');
+            } else {
+                mockBox.classList.add('d-none');
+            }
+        }
+
         // Safety report banner
         const safetyBox = document.getElementById('safetyAlertBox');
         if (safety && safety.has_conflict) {
             safetyBox.className = 'alert alert-danger mb-3 py-2 px-3 small';
-            safetyBox.innerHTML = `<strong><i class="bi bi-shield-fill-x me-1"></i>CẢNH BÁO AN TOÀN Y TẾ:</strong> ${safety.summary}
-                <div class="mt-1">${safety.recommendations || ''}</div>`;
+            safetyBox.innerHTML = `<strong><i class="bi bi-shield-fill-x me-1"></i>CẢNH BÁO AN TOÀN Y TẾ:</strong> ${escapeHtml(safety.summary || 'Phát hiện nguy cơ tương tác / dị ứng thuốc.')}
+                <div class="mt-1">${escapeHtml(safety.recommendations || '')}</div>`;
             safetyBox.classList.remove('d-none');
-        } else {
+        } else if (safety && Object.prototype.hasOwnProperty.call(safety, 'has_conflict')) {
             safetyBox.className = 'alert alert-success mb-3 py-2 px-3 small';
             safetyBox.innerHTML = '<strong><i class="bi bi-shield-check me-1"></i>AN TOÀN:</strong> Không phát hiện trùng hoạt chất Paracetamol hay chống chỉ định dị ứng thuốc.';
+            safetyBox.classList.remove('d-none');
+        } else {
+            safetyBox.className = 'alert alert-secondary mb-3 py-2 px-3 small';
+            safetyBox.innerHTML = '<strong><i class="bi bi-question-circle me-1"></i>CHƯA THẨM ĐỊNH:</strong> Không kiểm tra được tương tác thuốc cho kết quả này. Hãy hỏi ý kiến bác sĩ/dược sĩ trước khi dùng.';
             safetyBox.classList.remove('d-none');
         }
 
@@ -411,17 +431,17 @@
             meds.forEach(m => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td class="fw-bold text-dark">${m.name || '--'}</td>
+                    <td class="fw-bold text-dark">${escapeHtml(m.name || '--')}</td>
                     <td>
-                        <div class="text-primary fw-semibold">${m.active_ingredient || '--'}</div>
-                        <div class="text-muted small">${m.concentration || ''}</div>
+                        <div class="text-primary fw-semibold">${escapeHtml(m.active_ingredient || '--')}</div>
+                        <div class="text-muted small">${escapeHtml(m.concentration || '')}</div>
                     </td>
-                    <td>${m.dosage || '1 viên'}</td>
+                    <td>${escapeHtml(m.dosage || '1 viên')}</td>
                     <td>
-                        <div>${m.frequency || '--'}</div>
-                        <div class="text-muted small">${m.instructions || ''}</div>
+                        <div>${escapeHtml(m.frequency || '--')}</div>
+                        <div class="text-muted small">${escapeHtml(m.instructions || '')}</div>
                     </td>
-                    <td><span class="badge bg-light text-dark border font-monospace">${m.expiry_date || 'Theo vỏ thuốc'}</span></td>
+                    <td><span class="badge bg-light text-dark border font-monospace">${escapeHtml(m.expiry_date || 'Theo vỏ thuốc')}</span></td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -630,7 +650,7 @@
 
     function escapeHtml(text) {
         const div = document.createElement('div');
-        div.innerText = text;
+        div.textContent = text == null ? '' : String(text);
         return div.innerHTML;
     }
 </script>

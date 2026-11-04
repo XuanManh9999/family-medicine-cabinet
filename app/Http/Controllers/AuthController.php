@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
@@ -112,58 +113,63 @@ class AuthController extends Controller
 
         $validated = $request->validate($rules, $messages);
 
-        if ($registrationType === 'create_family') {
-            // Sinh mã mời độc nhất cho Hộ gia đình mới: FAM-XXXX
-            do {
-                $familyCode = 'FAM-' . strtoupper(Str::random(6));
-            } while (Family::where('code', $familyCode)->exists());
+        // Tạo gia đình, tài khoản và hồ sơ trong một giao dịch: lỗi giữa chừng không để lại dữ liệu mồ côi
+        [$family, $user] = DB::transaction(function () use ($registrationType, $validated) {
+            if ($registrationType === 'create_family') {
+                // Sinh mã mời độc nhất cho Hộ gia đình mới: FAM-XXXX
+                do {
+                    $familyCode = 'FAM-' . strtoupper(Str::random(6));
+                } while (Family::where('code', $familyCode)->exists());
 
-            $family = Family::create([
-                'name' => $validated['family_name'],
-                'code' => $familyCode,
-                'address' => $validated['family_address'] ?? null,
-            ]);
+                $family = Family::create([
+                    'name' => $validated['family_name'],
+                    'code' => $familyCode,
+                    'address' => $validated['family_address'] ?? null,
+                ]);
 
-            $user = User::create([
-                'family_id' => $family->id,
-                'name' => $validated['name'],
-                'email' => $validated['email'],
-                'phone' => $validated['phone'] ?? null,
-                'role' => 'family_admin',
-                'password' => Hash::make($validated['password']),
-            ]);
+                $user = User::create([
+                    'family_id' => $family->id,
+                    'name' => $validated['name'],
+                    'email' => $validated['email'],
+                    'phone' => $validated['phone'] ?? null,
+                    'role' => 'family_admin',
+                    'password' => Hash::make($validated['password']),
+                ]);
 
-            // Cập nhật người tạo cho gia đình
-            $family->update(['created_by' => $user->id]);
+                // Cập nhật người tạo cho gia đình
+                $family->update(['created_by' => $user->id]);
 
-            // Tạo luôn hồ sơ thành viên cá nhân cho người đăng ký
-            FamilyMember::create([
-                'family_id' => $family->id,
-                'user_id' => $user->id,
-                'name' => $user->name,
-                'relationship' => 'ban_than',
-                'gender' => 'nam',
-            ]);
-        } else {
-            $family = Family::where('code', $validated['family_code'])->firstOrFail();
+                // Tạo luôn hồ sơ thành viên cá nhân cho người đăng ký
+                FamilyMember::create([
+                    'family_id' => $family->id,
+                    'user_id' => $user->id,
+                    'name' => $user->name,
+                    'relationship' => 'ban_than',
+                    'gender' => 'nam',
+                ]);
+            } else {
+                $family = Family::where('code', $validated['family_code'])->firstOrFail();
 
-            $user = User::create([
-                'family_id' => $family->id,
-                'name' => $validated['name'],
-                'email' => $validated['email'],
-                'phone' => $validated['phone'] ?? null,
-                'role' => 'member',
-                'password' => Hash::make($validated['password']),
-            ]);
+                $user = User::create([
+                    'family_id' => $family->id,
+                    'name' => $validated['name'],
+                    'email' => $validated['email'],
+                    'phone' => $validated['phone'] ?? null,
+                    'role' => 'member',
+                    'password' => Hash::make($validated['password']),
+                ]);
 
-            FamilyMember::create([
-                'family_id' => $family->id,
-                'user_id' => $user->id,
-                'name' => $user->name,
-                'relationship' => 'ban_than',
-                'gender' => 'nam',
-            ]);
-        }
+                FamilyMember::create([
+                    'family_id' => $family->id,
+                    'user_id' => $user->id,
+                    'name' => $user->name,
+                    'relationship' => 'ban_than',
+                    'gender' => 'nam',
+                ]);
+            }
+
+            return [$family, $user];
+        });
 
         Auth::login($user);
         $request->session()->regenerate();
@@ -222,13 +228,17 @@ class AuthController extends Controller
         $user->name = $validated['name'];
         $user->phone = $validated['phone'] ?? null;
 
-        // 1. Xử lý lưu ảnh đại diện (Tự động lưu dạng Base64 hoặc File storage)
+        // 1. Xử lý lưu ảnh đại diện: ảnh Base64 (đã nén ở trình duyệt) được giải mã và lưu thành file,
+        //    không lưu chuỗi Base64 vào CSDL (tránh vượt max_allowed_packet của MySQL và nhồi HTML mỗi trang)
         if ($request->filled('avatar_base64') && str_starts_with($request->input('avatar_base64'), 'data:image')) {
-            // Xóa file cũ nếu có trong Storage
+            $storedPath = $this->storeBase64Avatar((string) $request->input('avatar_base64'));
+            if (!$storedPath) {
+                return back()->withErrors(['avatar' => 'Ảnh đại diện không hợp lệ (chỉ nhận JPG, PNG, WEBP, GIF tối đa 5MB).'])->withInput();
+            }
             if ($user->avatar && !str_starts_with($user->avatar, 'data:image') && Storage::disk('public')->exists($user->avatar)) {
                 Storage::disk('public')->delete($user->avatar);
             }
-            $user->avatar = $request->input('avatar_base64');
+            $user->avatar = $storedPath;
         } elseif ($request->hasFile('avatar')) {
             // Xóa file cũ nếu có trong Storage
             if ($user->avatar && !str_starts_with($user->avatar, 'data:image') && Storage::disk('public')->exists($user->avatar)) {
@@ -243,9 +253,10 @@ class AuthController extends Controller
             $user->avatar = null;
         }
 
-        // 2. Xử lý đổi mật khẩu nếu có
+        // 2. Xử lý đổi mật khẩu nếu có (đăng xuất các thiết bị đang "ghi nhớ đăng nhập")
         if (!empty($validated['new_password'])) {
             $user->password = Hash::make($validated['new_password']);
+            $user->setRememberToken(Str::random(60));
         }
 
         $user->save();
@@ -285,17 +296,21 @@ class AuthController extends Controller
 
         $user = User::where('email', $request->email)->firstOrFail();
 
+        // Yêu cầu mã mới luôn hủy kết quả xác thực OTP cũ trong phiên (tránh dùng OTP của email A để đổi mật khẩu email B)
+        session()->forget(['otp_verified', 'otp_verified_email', 'otp_verified_at', 'demo_otp']);
+
         // Tạo mã OTP 6 chữ số ngẫu nhiên
         $otp = (string) random_int(100000, 999999);
 
-        // Lưu vào bảng password_reset_tokens
+        // Lưu bản băm của OTP vào bảng password_reset_tokens (không lưu mã gốc)
         DB::table('password_reset_tokens')->updateOrInsert(
             ['email' => $user->email],
             [
-                'token' => $otp,
+                'token' => Hash::make($otp),
                 'created_at' => now(),
             ]
         );
+        RateLimiter::clear($this->otpAttemptKey($user->email));
 
         // Gửi email chứa mã OTP
         try {
@@ -307,10 +322,12 @@ class AuthController extends Controller
         }
 
         // Lưu email vào session để xác thực ở bước sau
-        session([
-            'reset_email' => $user->email,
-            'demo_otp' => $otp, // Hỗ trợ hiển thị khi môi trường mailer là log
-        ]);
+        session(['reset_email' => $user->email]);
+
+        // Chỉ hiển thị OTP trên màn hình khi chạy local và mail chỉ ghi ra log (không gửi thật)
+        if ($this->canShowDemoOtp()) {
+            session(['demo_otp' => $otp]);
+        }
 
         return redirect()->route('password.otp')
             ->with('success', 'Mã xác thực OTP đã được gửi đến email ' . $user->email . '. Vui lòng kiểm tra hộp thư!');
@@ -328,7 +345,7 @@ class AuthController extends Controller
 
         return view('auth.verify-otp', [
             'email' => session('reset_email'),
-            'demoOtp' => session('demo_otp'),
+            'demoOtp' => $this->canShowDemoOtp() ? session('demo_otp') : null,
         ]);
     }
 
@@ -350,22 +367,33 @@ class AuthController extends Controller
                 ->with('warning', 'Phiên làm việc đã hết hạn. Vui lòng thử lại.');
         }
 
-        $record = DB::table('password_reset_tokens')
-            ->where('email', $email)
-            ->where('token', $request->otp)
-            ->first();
+        $record = DB::table('password_reset_tokens')->where('email', $email)->first();
 
-        if (!$record) {
-            return back()->withErrors(['otp' => 'Mã OTP không chính xác. Vui lòng kiểm tra lại.']);
+        if (!$record || Carbon::parse($record->created_at)->addMinutes(15)->isPast()) {
+            return back()->withErrors(['otp' => 'Mã OTP đã hết hạn hoặc không tồn tại. Vui lòng yêu cầu mã mới.']);
         }
 
-        // Kiểm tra thời hạn 15 phút
-        if (Carbon::parse($record->created_at)->addMinutes(15)->isPast()) {
-            return back()->withErrors(['otp' => 'Mã OTP đã hết hạn sử dụng. Vui lòng yêu cầu mã mới.']);
+        // Giới hạn 5 lần nhập sai cho mỗi mã OTP, vượt quá thì hủy mã
+        $attemptKey = $this->otpAttemptKey($email);
+        if (RateLimiter::tooManyAttempts($attemptKey, 5)) {
+            DB::table('password_reset_tokens')->where('email', $email)->delete();
+            return back()->withErrors(['otp' => 'Bạn đã nhập sai quá nhiều lần. Mã OTP đã bị hủy, vui lòng yêu cầu mã mới.']);
         }
 
-        // Xác thực thành công -> cho phép đặt lại mật khẩu
-        session(['otp_verified' => true]);
+        if (!Hash::check($request->otp, $record->token)) {
+            RateLimiter::hit($attemptKey, 15 * 60);
+            $remaining = max(0, 5 - RateLimiter::attempts($attemptKey));
+            return back()->withErrors(['otp' => "Mã OTP không chính xác. Bạn còn {$remaining} lần thử."]);
+        }
+
+        RateLimiter::clear($attemptKey);
+
+        // Xác thực thành công -> cho phép đặt lại mật khẩu cho ĐÚNG email này trong 15 phút
+        session([
+            'otp_verified' => true,
+            'otp_verified_email' => $email,
+            'otp_verified_at' => now()->timestamp,
+        ]);
 
         return redirect()->route('password.reset')
             ->with('success', 'Xác thực OTP thành công! Vui lòng tạo mật khẩu mới cho tài khoản.');
@@ -376,7 +404,7 @@ class AuthController extends Controller
      */
     public function showResetPasswordForm()
     {
-        if (!session('reset_email') || !session('otp_verified')) {
+        if (!$this->hasValidOtpSession()) {
             return redirect()->route('password.request')
                 ->with('warning', 'Vui lòng xác thực mã OTP trước khi đặt lại mật khẩu.');
         }
@@ -399,21 +427,78 @@ class AuthController extends Controller
             'password.confirmed' => 'Xác nhận mật khẩu mới không khớp.',
         ]);
 
-        $email = session('reset_email');
-        if (!$email || !session('otp_verified')) {
+        if (!$this->hasValidOtpSession()) {
+            session()->forget(['otp_verified', 'otp_verified_email', 'otp_verified_at']);
             return redirect()->route('password.request')
                 ->with('warning', 'Phiên làm việc đã hết hạn. Vui lòng thực hiện lại.');
         }
 
+        $email = session('reset_email');
         $user = User::where('email', $email)->firstOrFail();
         $user->password = Hash::make($request->password);
+        $user->setRememberToken(Str::random(60));
         $user->save();
 
         // Xóa mã OTP đã sử dụng
         DB::table('password_reset_tokens')->where('email', $email)->delete();
-        session()->forget(['reset_email', 'otp_verified', 'demo_otp']);
+        session()->forget(['reset_email', 'otp_verified', 'otp_verified_email', 'otp_verified_at', 'demo_otp']);
 
         return redirect()->route('login')
             ->with('success', 'Mật khẩu của bạn đã được cập nhật thành công! Hãy đăng nhập bằng mật khẩu mới.');
+    }
+
+    /**
+     * Phiên đặt lại mật khẩu hợp lệ: OTP đã xác thực cho đúng email, trong 15 phút, mã vẫn còn
+     */
+    private function hasValidOtpSession(): bool
+    {
+        $email = session('reset_email');
+        $verifiedAt = (int) session('otp_verified_at', 0);
+
+        return $email
+            && session('otp_verified') === true
+            && session('otp_verified_email') === $email
+            && $verifiedAt > 0
+            && now()->timestamp - $verifiedAt <= 15 * 60
+            && DB::table('password_reset_tokens')->where('email', $email)->exists();
+    }
+
+    private function otpAttemptKey(string $email): string
+    {
+        return 'otp-verify:' . mb_strtolower($email);
+    }
+
+    /**
+     * Chỉ hiện OTP "demo" trên màn hình khi chạy local và mail chỉ được ghi vào log
+     */
+    private function canShowDemoOtp(): bool
+    {
+        return app()->isLocal() && config('mail.default') === 'log';
+    }
+
+    /**
+     * Giải mã ảnh Base64, kiểm tra định dạng & dung lượng, lưu vào storage/app/public/avatars
+     */
+    private function storeBase64Avatar(string $dataUri): ?string
+    {
+        if (!preg_match('/^data:image\/(png|jpe?g|webp|gif);base64,(.+)$/s', $dataUri, $matches)) {
+            return null;
+        }
+
+        $binary = base64_decode($matches[2], true);
+        if ($binary === false || strlen($binary) === 0 || strlen($binary) > 5 * 1024 * 1024) {
+            return null;
+        }
+
+        $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($binary);
+        $extensions = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp', 'image/gif' => 'gif'];
+        if (!isset($extensions[$mime])) {
+            return null;
+        }
+
+        $path = 'avatars/' . Str::uuid() . '.' . $extensions[$mime];
+        Storage::disk('public')->put($path, $binary);
+
+        return $path;
     }
 }

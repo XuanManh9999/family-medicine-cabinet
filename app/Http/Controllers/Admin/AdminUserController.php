@@ -3,9 +3,13 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\FamilyMember;
 use App\Models\User;
+use App\Support\DateRangeFilter;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class AdminUserController extends Controller
@@ -32,9 +36,12 @@ class AdminUserController extends Controller
             $query->where('role', $role);
         }
 
+        $dateFilter = DateRangeFilter::fromRequest($request);
+        $dateFilter->apply($query);
+
         $users = $query->latest()->paginate(15)->withQueryString();
 
-        return view('admin.users.index', compact('users', 'search', 'role'));
+        return view('admin.users.index', compact('users', 'search', 'role', 'dateFilter'));
     }
 
     /**
@@ -49,6 +56,32 @@ class AdminUserController extends Controller
         // Tránh tự hạ quyền của chính mình nếu là system_admin duy nhất
         if ($user->id === auth()->id() && $validated['role'] !== 'system_admin') {
             return back()->with('warning', 'Bạn không thể tự hạ quyền Quản trị viên hệ thống của chính mình.');
+        }
+
+        // Vai trò trong gia đình bắt buộc tài khoản phải thuộc một hộ gia đình
+        if ($validated['role'] !== 'system_admin' && !$user->family_id) {
+            return back()->with('warning', "Tài khoản \"{$user->name}\" chưa thuộc hộ gia đình nào nên không thể gán vai trò trong gia đình.");
+        }
+
+        // Không để hộ gia đình mất Chủ hộ cuối cùng
+        if ($user->role === 'family_admin' && $validated['role'] !== 'family_admin') {
+            $otherAdmins = User::where('family_id', $user->family_id)
+                ->where('role', 'family_admin')
+                ->where('id', '!=', $user->id)
+                ->exists();
+            if (!$otherAdmins) {
+                return back()->with('warning', "\"{$user->name}\" là Chủ hộ duy nhất của gia đình. Hãy chỉ định Chủ hộ khác trước khi đổi vai trò.");
+            }
+        }
+
+        // Quản trị viên hệ thống là tài khoản trung tâm: rời khỏi hộ gia đình (hồ sơ sức khỏe vẫn được giữ)
+        if ($validated['role'] === 'system_admin' && $user->family_id) {
+            DB::transaction(function () use ($user) {
+                FamilyMember::where('user_id', $user->id)->update(['user_id' => null]);
+                $user->update(['role' => 'system_admin', 'family_id' => null]);
+            });
+
+            return back()->with('success', "Đã nâng \"{$user->name}\" thành Quản trị viên Hệ thống và gỡ tài khoản này khỏi hộ gia đình cũ.");
         }
 
         $user->update(['role' => $validated['role']]);
@@ -75,9 +108,11 @@ class AdminUserController extends Controller
             'password.confirmed' => 'Xác nhận mật khẩu không trùng khớp.',
         ]);
 
-        $user->update([
+        // Đổi mật khẩu đồng thời vô hiệu hóa cookie "ghi nhớ đăng nhập" cũ
+        $user->forceFill([
             'password' => Hash::make($validated['password']),
-        ]);
+            'remember_token' => Str::random(60),
+        ])->save();
 
         return back()->with('success', "Đã đặt lại mật khẩu mới cho tài khoản \"{$user->email}\" thành công!");
     }

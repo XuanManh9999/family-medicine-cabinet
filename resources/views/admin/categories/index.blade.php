@@ -91,7 +91,7 @@
                         <td class="text-end">
                             <div class="btn-group btn-group-sm">
                                 <button type="button" class="btn btn-outline-primary" 
-                                        onclick="editCategory({{ json_encode($cat) }})" title="Sửa nhóm">
+                                        onclick="editCategory({{ json_encode($cat) }}, @js(route('admin.categories.update', $cat)))" title="Sửa nhóm">
                                     <i class="bi bi-pencil"></i>
                                 </button>
                                 <form method="POST" action="{{ route('admin.categories.destroy', $cat) }}" class="d-inline" onsubmit="return confirm('Bạn có chắc chắn muốn xóa nhóm này?')">
@@ -201,8 +201,8 @@
 
 @push('scripts')
 <script>
-    function editCategory(cat) {
-        document.getElementById('editCategoryForm').action = '/admin/categories/' + cat.id;
+    function editCategory(cat, updateUrl) {
+        document.getElementById('editCategoryForm').action = updateUrl;
         document.getElementById('editCatName').value = cat.name;
         document.getElementById('editCatDesc').value = cat.description || '';
         document.getElementById('editCatRx').checked = !!cat.is_prescription_required;

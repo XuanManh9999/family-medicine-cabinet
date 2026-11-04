@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\CabinetItem;
 use App\Models\Medicine;
 use App\Models\MedicineCategory;
-use Carbon\Carbon;
+use App\Services\AlertScannerService;
 use Illuminate\Http\Request;
 
 class MedicineController extends Controller
@@ -103,39 +103,50 @@ class MedicineController extends Controller
     public function quickAddToCabinet(Request $request, Medicine $medicine)
     {
         $family = $this->ensureFamily($request);
+        abort_unless($request->user()->canManageCabinet(), 403, 'Chỉ Bác sĩ/Người chăm sóc y tế hoặc Quản trị viên hệ thống mới có quyền thêm thuốc vào tủ thuốc gia đình.');
+
+        // Chấp nhận cả tên trường cũ "manufacturing_date" (đưa về manufacture_date trước khi validate)
+        if (!$request->filled('manufacture_date') && $request->filled('manufacturing_date')) {
+            $request->merge(['manufacture_date' => $request->input('manufacturing_date')]);
+        }
 
         $validated = $request->validate([
-            'quantity' => 'required|numeric|min:0.5',
+            'quantity' => 'required|numeric|min:0.5|max:999999.99',
             'unit' => 'nullable|string|max:30',
             'expiry_date' => 'required|date|after_or_equal:today',
-            'manufacture_date' => 'nullable|date|before_or_equal:today',
-            'storage_location' => 'nullable|string|max:100',
-            'batch_number' => 'nullable|string|max:50',
-            'price_per_unit' => 'nullable|numeric|min:0',
+            'manufacture_date' => 'nullable|date|before_or_equal:today|before_or_equal:expiry_date',
+            'storage_location' => 'nullable|string|max:255',
+            'batch_number' => 'nullable|string|max:255',
+            'price_per_unit' => 'nullable|numeric|min:0|max:999999999.99',
         ], [
             'quantity.required' => 'Vui lòng nhập số lượng thuốc thêm vào tủ.',
+            'quantity.numeric' => 'Số lượng phải là số.',
             'quantity.min' => 'Số lượng tối thiểu là 0.5.',
+            'quantity.max' => 'Số lượng tối đa là 999.999,99.',
             'expiry_date.required' => 'Vui lòng nhập hạn sử dụng của thuốc.',
             'expiry_date.after_or_equal' => 'Hạn sử dụng không thể là ngày trong quá khứ.',
+            'manufacture_date.before_or_equal' => 'Ngày sản xuất không thể ở tương lai hoặc sau hạn sử dụng.',
+            'price_per_unit.numeric' => 'Đơn giá phải là số.',
+            'price_per_unit.min' => 'Đơn giá không được âm.',
+            'price_per_unit.max' => 'Đơn giá vượt quá giới hạn cho phép.',
         ]);
-
-        $isNearExpiry = Carbon::parse($validated['expiry_date'])->lte(today()->addDays(30));
-        $status = $isNearExpiry ? 'sap_het_han' : 'con_han';
 
         $item = CabinetItem::create([
             'family_id' => $family->id,
             'medicine_id' => $medicine->id,
             'custom_name' => $medicine->name,
             'batch_number' => $validated['batch_number'] ?? null,
-            'manufacturing_date' => $validated['manufacture_date'] ?? ($request->input('manufacturing_date') ?? null),
+            'manufacturing_date' => $validated['manufacture_date'] ?? null,
             'expiry_date' => $validated['expiry_date'],
             'quantity' => $validated['quantity'],
-            'unit' => $validated['unit'] ?: ($medicine->default_unit ?? 'viên'),
-            'storage_location' => $validated['storage_location'] ?? 'Ngăn chính',
-            'price_per_unit' => $validated['price_per_unit'] ?? 0,
-            'status' => $status,
+            'unit' => ($validated['unit'] ?? null) ?: ($medicine->default_unit ?: 'viên'),
+            'storage_location' => ($validated['storage_location'] ?? null) ?: 'Ngăn chính',
+            'price_per_unit' => $validated['price_per_unit'] ?? null,
+            'status' => CabinetItem::computeStatus($validated['expiry_date'], $validated['quantity']),
             'notes' => 'Thêm từ danh mục chuẩn: ' . $medicine->name,
         ]);
+
+        app(AlertScannerService::class)->scanFamily($family);
 
         if ($request->wantsJson() || $request->ajax()) {
             return response()->json([

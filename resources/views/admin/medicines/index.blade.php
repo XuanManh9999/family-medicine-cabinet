@@ -29,7 +29,7 @@
 <div class="admin-card mb-3">
     <div class="admin-card-body p-3">
         <form method="GET" action="{{ route('admin.medicines.index') }}" class="row g-2 align-items-center">
-            <div class="col-md-5">
+            <div class="col-md-4">
                 <div class="input-group input-group-sm">
                     <span class="input-group-text bg-light"><i class="bi bi-search text-muted"></i></span>
                     <input type="text" name="q" class="form-control" placeholder="Tìm theo tên thuốc, mã, hoạt chất, nhà sản xuất..." value="{{ $search }}">
@@ -53,9 +53,10 @@
                     @endforeach
                 </select>
             </div>
-            <div class="col-md-2 d-flex gap-1">
-                <button type="submit" class="btn btn-sm btn-primary flex-grow-1">Lọc</button>
-                @if ($search || $categoryId || $dosageForm)
+            @include('admin.partials.date-filter', ['dateFilterLabel' => 'Ngày thêm'])
+            <div class="col-md-auto d-flex gap-1">
+                <button type="submit" class="btn btn-sm btn-primary flex-grow-1 px-3">Lọc</button>
+                @if ($search || $categoryId || $dosageForm || $dateFilter->isActive())
                     <a href="{{ route('admin.medicines.index') }}" class="btn btn-sm btn-outline-secondary" title="Xóa bộ lọc">
                         <i class="bi bi-arrow-counterclockwise"></i>
                     </a>
@@ -87,6 +88,7 @@
                     <th>Dạng bào chế</th>
                     <th>Nhà sản xuất</th>
                     <th class="text-center">Đang dùng ở tủ</th>
+                    <th>Ngày thêm</th>
                     <th class="text-end" style="width: 140px;">Thao tác</th>
                 </tr>
             </thead>
@@ -135,6 +137,9 @@
                                 <span class="badge bg-light text-muted border">0</span>
                             @endif
                         </td>
+                        <td class="small text-muted text-nowrap">
+                            {{ $med->created_at ? $med->created_at->format('d/m/Y') : '—' }}
+                        </td>
                         <td class="text-end">
                             <div class="btn-group btn-group-sm">
                                 <a href="{{ route('admin.medicines.edit', $med) }}" class="btn btn-outline-primary" title="Chỉnh sửa thông tin thuốc">
@@ -152,7 +157,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8" class="text-center py-5 text-muted">
+                        <td colspan="9" class="text-center py-5 text-muted">
                             <i class="bi bi-search fs-1 mb-2 d-block opacity-50"></i>
                             <div>Không tìm thấy loại thuốc nào phù hợp.</div>
                         </td>

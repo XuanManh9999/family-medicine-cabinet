@@ -6,6 +6,7 @@ use App\Models\Family;
 use App\Models\FamilyMember;
 use App\Models\MedicineExpense;
 use App\Models\TreatmentCourse;
+use App\Support\CsvSanitizer;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -20,41 +21,16 @@ class MedicineExpenseController extends Controller
     {
         $family = $this->ensureFamily($request);
 
-        $selectedYear = (int)$request->query('year', Carbon::now()->year);
+        $filters = $this->filtersFrom($request);
+        $selectedYear = $filters['year'];
         $selectedMonth = $request->query('month');
-        $memberId = $request->query('member_id');
-        $courseId = $request->query('treatment_course_id');
-        $search = trim((string)$request->query('q'));
+        $memberId = $filters['member_id'];
+        $courseId = $filters['treatment_course_id'];
 
-        $query = $family->expenses()
-            ->with(['familyMember', 'treatmentCourse']);
-
-        if ($selectedYear) {
-            $query->whereYear('purchase_date', $selectedYear);
-        }
-
-        if ($selectedMonth && in_array((int)$selectedMonth, range(1, 12))) {
-            $query->whereMonth('purchase_date', (int)$selectedMonth);
-        }
-
-        if ($memberId) {
-            if ($memberId === 'general') {
-                $query->whereNull('family_member_id');
-            } else {
-                $query->where('family_member_id', $memberId);
-            }
-        }
-
-        if ($courseId) {
-            $query->where('treatment_course_id', $courseId);
-        }
-
-        if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('title', 'like', "%{$search}%")
-                  ->orWhere('notes', 'like', "%{$search}%");
-            });
-        }
+        $query = $this->applyFilters(
+            $family->expenses()->with(['familyMember', 'treatmentCourse']),
+            $filters
+        );
 
         $expenses = $query->orderByDesc('purchase_date')
             ->orderByDesc('id')
@@ -69,10 +45,18 @@ class MedicineExpenseController extends Controller
 
         $totalYear = (float)$yearExpenses->sum('amount');
         $currentMonth = (int)Carbon::now()->month;
-        $totalMonth = (float)$yearExpenses->filter(function ($exp) use ($currentMonth) {
-            return (int)Carbon::parse($exp->purchase_date)->month === $currentMonth;
+        $isCurrentYear = $selectedYear === (int)Carbon::now()->year;
+
+        // KPI tháng: tháng đang lọc > tháng hiện tại (nếu xem năm nay) > tháng 12 của năm đã chọn
+        $kpiMonth = $filters['month'] ?? ($isCurrentYear ? $currentMonth : 12);
+        $totalMonth = (float)$yearExpenses->filter(function ($exp) use ($kpiMonth) {
+            return (int)Carbon::parse($exp->purchase_date)->month === $kpiMonth;
         })->sum('amount');
-        $monthsCount = ($selectedYear === (int)Carbon::now()->year) ? max(1, $currentMonth) : 12;
+        $monthKpiPeriod = sprintf('%02d/%d', $kpiMonth, $selectedYear);
+        $monthKpiLabel = ($isCurrentYear && $kpiMonth === $currentMonth)
+            ? 'Chi tiêu tháng này'
+            : "Chi tiêu tháng {$monthKpiPeriod}";
+        $monthsCount = $isCurrentYear ? max(1, $currentMonth) : 12;
         $avgMonthly = $totalYear > 0 ? round($totalYear / $monthsCount) : 0;
 
         // 2. Dữ liệu Biểu đồ Chi phí theo 12 tháng (Monthly Trend Chart)
@@ -115,6 +99,8 @@ class MedicineExpenseController extends Controller
             'totalAll',
             'totalYear',
             'totalMonth',
+            'monthKpiLabel',
+            'monthKpiPeriod',
             'avgMonthly',
             'monthlyData',
             'memberExpenses',
@@ -124,7 +110,7 @@ class MedicineExpenseController extends Controller
             'courseId',
             'members',
             'treatmentCourses'
-        ));
+        ) + ['canManageExpenses' => $this->canManageExpenses($request->user())]);
     }
 
     /**
@@ -133,6 +119,7 @@ class MedicineExpenseController extends Controller
     public function create(Request $request)
     {
         $family = $this->ensureFamily($request);
+        $this->ensureCanManageExpenses($request);
 
         $expense = new MedicineExpense([
             'purchase_date' => Carbon::today(),
@@ -161,6 +148,7 @@ class MedicineExpenseController extends Controller
     public function store(Request $request)
     {
         $family = $this->ensureFamily($request);
+        $this->ensureCanManageExpenses($request);
 
         $validated = $this->validateExpense($request, $family->id);
 
@@ -190,6 +178,7 @@ class MedicineExpenseController extends Controller
     public function edit(Request $request, MedicineExpense $expense)
     {
         $this->authorizeExpense($request, $expense);
+        $this->ensureCanManageExpenses($request);
 
         $family = $request->user()->family;
         $members = $family->members()->orderBy('name')->get();
@@ -211,6 +200,7 @@ class MedicineExpenseController extends Controller
     public function update(Request $request, MedicineExpense $expense)
     {
         $this->authorizeExpense($request, $expense);
+        $this->ensureCanManageExpenses($request);
         $family = $request->user()->family;
 
         $validated = $this->validateExpense($request, $family->id);
@@ -260,9 +250,13 @@ class MedicineExpenseController extends Controller
     {
         $family = $this->ensureFamily($request);
 
-        $expenses = $family->expenses()
-            ->with(['familyMember', 'treatmentCourse'])
+        // Áp dụng đúng bộ lọc đang xem ở trang danh sách (năm / tháng / thành viên / đợt điều trị / từ khóa)
+        $expenses = $this->applyFilters(
+            $family->expenses()->with(['familyMember', 'treatmentCourse']),
+            $this->filtersFrom($request)
+        )
             ->orderByDesc('purchase_date')
+            ->orderByDesc('id')
             ->get();
 
         $fileName = 'So_Chi_Tieu_Y_Te_Gia_Dinh_' . date('Ymd_His') . '.csv';
@@ -280,7 +274,7 @@ class MedicineExpenseController extends Controller
             // Chèn UTF-8 BOM để Excel hiển thị đúng dấu tiếng Việt
             fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
 
-            fputcsv($handle, [
+            CsvSanitizer::writeRow($handle, [
                 'STT',
                 'Ngày chi tiêu',
                 'Nội dung hóa đơn / Khoản chi',
@@ -291,7 +285,8 @@ class MedicineExpenseController extends Controller
             ]);
 
             foreach ($expenses as $idx => $exp) {
-                fputcsv($handle, [
+                // Chống chèn công thức Excel (= + - @ tab CR) trong dữ liệu người dùng nhập
+                CsvSanitizer::writeRow($handle, [
                     $idx + 1,
                     $exp->purchase_date ? $exp->purchase_date->format('d/m/Y') : '',
                     $exp->title,
@@ -304,6 +299,67 @@ class MedicineExpenseController extends Controller
 
             fclose($handle);
         }, 200, $headers);
+    }
+
+    /**
+     * Chuẩn hóa tham số lọc từ query string (dùng chung cho danh sách & xuất CSV)
+     */
+    private function filtersFrom(Request $request): array
+    {
+        $month = (int)$request->query('month');
+
+        return [
+            'year' => (int)$request->query('year', Carbon::now()->year),
+            'month' => ($month >= 1 && $month <= 12) ? $month : null,
+            'member_id' => $request->query('member_id'),
+            'treatment_course_id' => $request->query('treatment_course_id'),
+            'q' => trim((string)$request->query('q')),
+        ];
+    }
+
+    private function applyFilters($query, array $filters)
+    {
+        if ($filters['year']) {
+            $query->whereYear('purchase_date', $filters['year']);
+        }
+
+        if ($filters['month']) {
+            $query->whereMonth('purchase_date', $filters['month']);
+        }
+
+        if ($memberId = $filters['member_id']) {
+            if ($memberId === 'general') {
+                $query->whereNull('family_member_id');
+            } else {
+                $query->where('family_member_id', $memberId);
+            }
+        }
+
+        if ($filters['treatment_course_id']) {
+            $query->where('treatment_course_id', $filters['treatment_course_id']);
+        }
+
+        if ($search = $filters['q']) {
+            $query->where(function ($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%")
+                  ->orWhere('notes', 'like', "%{$search}%");
+            });
+        }
+
+        return $query;
+    }
+
+    /**
+     * Quyền thêm / sửa khoản chi: Chủ hộ, Bác sĩ/Người chăm sóc, Quản trị viên hệ thống (thành viên chỉ được xem)
+     */
+    private function canManageExpenses($user): bool
+    {
+        return $user && ($user->isFamilyAdmin() || $user->isDoctorOrCaregiver() || $user->isSystemAdmin());
+    }
+
+    private function ensureCanManageExpenses(Request $request): void
+    {
+        abort_unless($this->canManageExpenses($request->user()), 403, 'Chỉ Chủ hộ, Bác sĩ/Người chăm sóc y tế hoặc Quản trị viên hệ thống mới có quyền thêm hoặc chỉnh sửa khoản chi phí y tế.');
     }
 
     /**
@@ -336,8 +392,8 @@ class MedicineExpenseController extends Controller
     {
         return $request->validate([
             'title' => 'required|string|max:255',
-            'amount' => 'required|numeric|min:0',
-            'purchase_date' => 'required|date',
+            'amount' => 'required|numeric|min:0|max:9999999999.99', // decimal(12,2)
+            'purchase_date' => 'required|date|before_or_equal:today',
             'family_member_id' => "nullable|exists:family_members,id,family_id,{$familyId}",
             'treatment_course_id' => "nullable|exists:treatment_courses,id,family_id,{$familyId}",
             'receipt_image' => 'nullable|file|mimes:jpeg,png,jpg,webp|max:10240',
@@ -345,8 +401,11 @@ class MedicineExpenseController extends Controller
         ], [
             'title.required' => 'Vui lòng nhập tên nội dung hóa đơn hoặc khoản chi thuốc.',
             'amount.required' => 'Vui lòng nhập số tiền chi tiêu.',
+            'amount.numeric' => 'Số tiền chi tiêu phải là số.',
             'amount.min' => 'Số tiền chi tiêu phải lớn hơn hoặc bằng 0.',
+            'amount.max' => 'Số tiền chi tiêu vượt quá giới hạn cho phép (tối đa 9.999.999.999 đ).',
             'purchase_date.required' => 'Vui lòng chọn ngày chi tiêu.',
+            'purchase_date.before_or_equal' => 'Ngày chi tiêu không thể ở tương lai.',
         ]);
     }
 }

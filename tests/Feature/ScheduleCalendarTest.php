@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Family;
 use App\Models\FamilyMember;
+use App\Models\MedicationLog;
 use App\Models\MedicationSchedule;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -91,5 +92,62 @@ class ScheduleCalendarTest extends TestCase
         $this->assertEquals('Amlodipine 5mg', $firstEvent['extendedProps']['medicine_name']);
         $this->assertEquals('1 viên', $firstEvent['extendedProps']['dosage']);
         $this->assertEquals('sau_an', $firstEvent['extendedProps']['meal_timing']);
+    }
+
+    public function test_calendar_range_is_capped_at_65_days(): void
+    {
+        $this->schedule->update([
+            'start_date' => now()->subYear()->toDateString(),
+            'end_date' => null,
+        ]);
+
+        $start = now()->subDays(100)->startOfDay();
+        $response = $this->actingAs($this->user)->getJson(route('schedules.calendar-events', [
+            'start' => $start->toDateString(),
+            'end' => $start->copy()->addDays(300)->toDateString(),
+        ]));
+
+        $response->assertOk();
+        $dates = collect($response->json())->pluck('extendedProps.scheduled_date')->unique();
+        $this->assertCount(66, $dates);
+        $this->assertLessThanOrEqual($start->copy()->addDays(65)->toDateString(), $dates->max());
+    }
+
+    public function test_calendar_rejects_invalid_dates(): void
+    {
+        $this->actingAs($this->user)->getJson(route('schedules.calendar-events', ['start' => 'khong-hop-le']))
+            ->assertStatus(422);
+
+        $this->actingAs($this->user)->getJson(route('schedules.calendar-events', [
+            'start' => now()->toDateString(),
+            'end' => now()->subDays(5)->toDateString(),
+        ]))->assertStatus(422);
+    }
+
+    public function test_calendar_accepts_fullcalendar_iso_range_and_returns_log_note(): void
+    {
+        $logDate = now()->startOfMonth();
+        MedicationLog::create([
+            'schedule_id' => $this->schedule->id,
+            'family_member_id' => $this->member->id,
+            'scheduled_time' => $logDate->copy()->setTime(7, 30),
+            'status' => 'quen_uong',
+            'note' => 'Đi công tác quên thuốc',
+        ]);
+
+        // Lịch đã ngừng: chỉ còn hiện ngày có nhật ký
+        $this->schedule->update(['is_active' => false]);
+
+        $response = $this->actingAs($this->user)->getJson(route('schedules.calendar-events', [
+            'start' => now()->startOfMonth()->format('Y-m-d\TH:i:sP'),
+            'end' => now()->endOfMonth()->startOfDay()->format('Y-m-d\TH:i:sP'),
+        ]));
+
+        $response->assertOk();
+        $events = $response->json();
+        $this->assertCount(1, $events);
+        $this->assertEquals($logDate->toDateString(), $events[0]['extendedProps']['scheduled_date']);
+        $this->assertEquals('quen_uong', $events[0]['extendedProps']['status']);
+        $this->assertEquals('Đi công tác quên thuốc', $events[0]['extendedProps']['note']);
     }
 }

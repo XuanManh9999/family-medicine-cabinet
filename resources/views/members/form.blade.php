@@ -93,20 +93,22 @@
                             @error('blood_type')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
 
-                        <div class="col-12 col-md-6">
-                            <label for="user_id" class="form-label fw-semibold text-dark mb-1">
-                                Liên kết tài khoản App <span class="text-muted fw-normal">(Không bắt buộc)</span>
-                            </label>
-                            <select id="user_id" name="user_id" class="form-select @error('user_id') is-invalid @enderror">
-                                <option value="">Không liên kết (Người già, trẻ em không dùng smartphone)</option>
-                                @foreach ($availableUsers as $u)
-                                    <option value="{{ $u->id }}" @selected((string)old('user_id', $member->user_id) === (string)$u->id)>
-                                        {{ $u->name }} ({{ $u->email }})
-                                    </option>
-                                @endforeach
-                            </select>
-                            @error('user_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        </div>
+                        @if (auth()->user()->canManageMembers())
+                            <div class="col-12 col-md-6">
+                                <label for="user_id" class="form-label fw-semibold text-dark mb-1">
+                                    Liên kết tài khoản App <span class="text-muted fw-normal">(Không bắt buộc)</span>
+                                </label>
+                                <select id="user_id" name="user_id" class="form-select @error('user_id') is-invalid @enderror">
+                                    <option value="">Không liên kết (Người già, trẻ em không dùng smartphone)</option>
+                                    @foreach ($availableUsers as $u)
+                                        <option value="{{ $u->id }}" @selected((string)old('user_id', $member->user_id) === (string)$u->id)>
+                                            {{ $u->name }} ({{ $u->email }})
+                                        </option>
+                                    @endforeach
+                                </select>
+                                @error('user_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            </div>
+                        @endif
 
                         <div class="col-12 col-md-6">
                             <label for="avatar_file" class="form-label fw-semibold text-dark mb-1">Ảnh đại diện</label>
@@ -131,7 +133,7 @@
                     </label>
                     <textarea id="allergies" name="allergies" rows="3" maxlength="3000"
                               class="form-control @error('allergies') is-invalid @enderror"
-                              placeholder="Ví dụ: Dị ứng Penicillin (nổi mề đay, ngứa), dị ứng Aspirin & Ibuprofen (khó thở, phù mạch)...">{!! old('allergies', $member->allergies) !!}</textarea>
+                              placeholder="Ví dụ: Dị ứng Penicillin (nổi mề đay, ngứa), dị ứng Aspirin & Ibuprofen (khó thở, phù mạch)...">{{ old('allergies', $member->allergies) }}</textarea>
                     @error('allergies')<div class="invalid-feedback">{{ $message }}</div>@enderror
 
                     <!-- Nút gợi ý nhanh dị ứng thuốc phổ biến -->
@@ -162,7 +164,7 @@
                     </label>
                     <textarea id="underlying_diseases" name="underlying_diseases" rows="3" maxlength="3000"
                               class="form-control @error('underlying_diseases') is-invalid @enderror"
-                              placeholder="Ví dụ: Tăng huyết áp vô căn độ 2, Đái tháo đường type 2 (10 năm), Viêm loét dạ dày tá tràng...">{!! old('underlying_diseases', $member->underlying_diseases) !!}</textarea>
+                              placeholder="Ví dụ: Tăng huyết áp vô căn độ 2, Đái tháo đường type 2 (10 năm), Viêm loét dạ dày tá tràng...">{{ old('underlying_diseases', $member->underlying_diseases) }}</textarea>
                     @error('underlying_diseases')<div class="invalid-feedback">{{ $message }}</div>@enderror
 
                     <!-- Nút gợi ý nhanh bệnh lý nền phổ biến -->

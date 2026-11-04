@@ -223,9 +223,11 @@
             <i class="bi bi-file-earmark-medical text-primary me-2"></i>LỊCH SỬ CÁC ĐỢT ĐIỀU TRỊ / ĐƠN THUỐC BÁC SĨ ({{ $treatmentCourses->count() }})
         </span>
         <div class="d-flex align-items-center gap-2">
-            <a href="{{ route('treatment-courses.create', ['member_id' => $member->id]) }}" class="btn btn-xs btn-outline-primary py-0 px-2" style="font-size: 12px;">
-                <i class="bi bi-plus-circle me-1"></i>Kê đơn mới
-            </a>
+            @if (auth()->user()->canManageTreatments())
+                <a href="{{ route('treatment-courses.create', ['member_id' => $member->id]) }}" class="btn btn-xs btn-outline-primary py-0 px-2" style="font-size: 12px;">
+                    <i class="bi bi-plus-circle me-1"></i>Kê đơn mới
+                </a>
+            @endif
             <a href="{{ route('treatment-courses.index', ['member_id' => $member->id]) }}" class="small text-decoration-none">Tất cả đơn thuốc <i class="bi bi-chevron-right"></i></a>
         </div>
     </div>

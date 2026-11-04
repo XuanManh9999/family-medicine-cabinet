@@ -211,6 +211,142 @@ class SmartAlertManagementTest extends TestCase
         ]);
     }
 
+    private function itemAlerts(CabinetItem $item)
+    {
+        return SmartAlert::where('family_id', $this->family->id)->where('cabinet_item_id', $item->id)->get();
+    }
+
+    public function test_member_cannot_trigger_scan(): void
+    {
+        $member = User::where('email', 'hoa.tran@gmail.com')->first();
+
+        $this->actingAs($member)->post(route('alerts.scan'))->assertStatus(403);
+        $this->actingAs($member)->get(route('alerts.index'))->assertDontSee('Quét an toàn tủ thuốc ngay');
+    }
+
+    public function test_rescan_keeps_read_state_and_does_not_duplicate_between_command_and_service(): void
+    {
+        $expired = CabinetItem::create([
+            'family_id' => $this->family->id,
+            'custom_name' => 'Panadol',
+            'quantity' => 10,
+            'unit' => 'viên',
+            'expiry_date' => Carbon::today()->subDays(3),
+        ]);
+        $similar = CabinetItem::create([
+            'family_id' => $this->family->id,
+            'custom_name' => 'Panadol Extra Test',
+            'quantity' => 3,
+            'unit' => 'viên',
+            'expiry_date' => Carbon::today()->addDays(10),
+        ]);
+
+        $this->actingAs($this->user)->post(route('alerts.scan'))->assertRedirect(route('alerts.index'));
+
+        // "Panadol Extra Test" không che mất cảnh báo của "Panadol" (không còn so khớp LIKE)
+        $this->assertSame(['expired'], $this->itemAlerts($expired)->pluck('type')->all());
+        $this->assertEqualsCanonicalizing(['near_expiry', 'low_stock'], $this->itemAlerts($similar)->pluck('type')->all());
+        $this->assertSame('qua_han', $expired->fresh()->status);
+
+        // Đánh dấu đã đọc rồi quét lại bằng cả lệnh artisan lẫn nút quét
+        SmartAlert::where('family_id', $this->family->id)->update(['is_read' => true]);
+        $totalBefore = SmartAlert::where('family_id', $this->family->id)->count();
+
+        $this->artisan('cabinet:scan-alerts')->assertSuccessful();
+        $this->artisan('cabinet:scan-alerts')->assertSuccessful();
+        $this->actingAs($this->user)->post(route('alerts.scan'));
+
+        $this->assertSame($totalBefore, SmartAlert::where('family_id', $this->family->id)->count());
+        $this->assertSame(0, SmartAlert::where('family_id', $this->family->id)->unread()->count());
+        $this->assertCount(1, $this->itemAlerts($expired));
+        $this->assertCount(2, $this->itemAlerts($similar));
+    }
+
+    public function test_scan_resolves_stale_alerts_and_reopens_on_escalation(): void
+    {
+        $item = CabinetItem::create([
+            'family_id' => $this->family->id,
+            'custom_name' => 'Siro ho Prospan',
+            'quantity' => 0,
+            'unit' => 'chai',
+            'expiry_date' => Carbon::today()->addDays(5),
+        ]);
+
+        $this->artisan('cabinet:scan-alerts')->assertSuccessful();
+        // Hết hàng => chỉ cảnh báo "đã hết", không cảnh báo hạn dùng
+        $this->assertSame(['out_of_stock'], $this->itemAlerts($item)->pluck('type')->all());
+
+        // Bổ sung 0 -> 2: gỡ cảnh báo "đã hết", sinh cảnh báo tồn thấp + cận date
+        $item->update(['quantity' => 2]);
+        $this->artisan('cabinet:scan-alerts')->assertSuccessful();
+        $this->assertEqualsCanonicalizing(['low_stock', 'near_expiry'], $this->itemAlerts($item)->pluck('type')->all());
+
+        // Đã đọc cảnh báo cận date; sang ngày hôm sau số ngày còn lại đổi nhưng vẫn giữ trạng thái đã đọc
+        SmartAlert::where('cabinet_item_id', $item->id)->update(['is_read' => true]);
+        $this->travel(1)->days();
+        $this->artisan('cabinet:scan-alerts')->assertSuccessful();
+        $nearAlert = $this->itemAlerts($item)->firstWhere('type', 'near_expiry');
+        $this->assertTrue($nearAlert->is_read);
+        $this->assertStringContainsString('còn 4 ngày', $nearAlert->content);
+
+        // Quá hạn => gỡ cận date, tạo cảnh báo quá hạn (chưa đọc)
+        $item->update(['expiry_date' => Carbon::today()->subDay()]);
+        $this->artisan('cabinet:scan-alerts')->assertSuccessful();
+        $alerts = $this->itemAlerts($item);
+        $this->assertNull($alerts->firstWhere('type', 'near_expiry'));
+        $this->assertFalse($alerts->firstWhere('type', 'expired')->is_read);
+
+        // Đổi tên thuốc => nội dung thay đổi quan trọng => chưa đọc lại
+        SmartAlert::where('cabinet_item_id', $item->id)->update(['is_read' => true]);
+        $item->update(['custom_name' => 'Siro ho Prospan 100ml']);
+        $this->artisan('cabinet:scan-alerts')->assertSuccessful();
+        $expiredAlert = $this->itemAlerts($item)->firstWhere('type', 'expired');
+        $this->assertFalse($expiredAlert->is_read);
+        $this->assertStringContainsString('Siro ho Prospan 100ml', $expiredAlert->title);
+
+        // Bổ sung đủ hàng & HSD mới => mọi cảnh báo của lô bị gỡ
+        $item->update(['quantity' => 30, 'expiry_date' => Carbon::today()->addYears(2)]);
+        $this->artisan('cabinet:scan-alerts')->assertSuccessful();
+        $this->assertCount(0, $this->itemAlerts($item));
+        $this->assertSame('con_han', $item->fresh()->status);
+    }
+
+    public function test_paracetamol_interaction_detects_active_ingredient_and_resolves(): void
+    {
+        $this->family->cabinetItems()->delete();
+        SmartAlert::where('family_id', $this->family->id)->where('type', 'drug_interaction')->delete();
+
+        $medicine = \App\Models\Medicine::create([
+            'category_id' => \App\Models\MedicineCategory::firstOrFail()->id,
+            'code' => 'MED-ACETA-TEST',
+            'name' => 'Thuốc hạ sốt không tên thương mại',
+            'active_ingredient' => 'Acetaminophen 325mg',
+        ]);
+
+        $a = CabinetItem::create([
+            'family_id' => $this->family->id,
+            'medicine_id' => $medicine->id,
+            'custom_name' => 'Viên sủi hạ sốt X',
+            'quantity' => 10,
+            'unit' => 'viên',
+            'expiry_date' => Carbon::today()->addYear(),
+        ]);
+        CabinetItem::create([
+            'family_id' => $this->family->id,
+            'custom_name' => 'Hapacol 250',
+            'quantity' => 10,
+            'unit' => 'gói',
+            'expiry_date' => Carbon::today()->addYear(),
+        ]);
+
+        $this->artisan('cabinet:scan-alerts')->assertSuccessful();
+        $this->assertSame(1, SmartAlert::where('family_id', $this->family->id)->where('type', 'drug_interaction')->count());
+
+        $a->delete();
+        $this->artisan('cabinet:scan-alerts')->assertSuccessful();
+        $this->assertSame(0, SmartAlert::where('family_id', $this->family->id)->where('type', 'drug_interaction')->count());
+    }
+
     public function test_user_cannot_access_or_modify_other_familys_alert(): void
     {
         $otherFamily = Family::create([

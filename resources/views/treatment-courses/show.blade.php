@@ -163,39 +163,55 @@
 
         <!-- KHỐI 2: THẨM ĐỊNH AN TOÀN TƯƠNG TÁC THUỐC AI (GEMINI CLINICAL SAFETY CHECKER) -->
         @php
-            $aiData = $treatmentCourse->ai_analysis_data ?? [];
-            $hasConflict = !empty($aiData['has_conflict']);
+            $aiData = is_array($treatmentCourse->ai_analysis_data) ? $treatmentCourse->ai_analysis_data : [];
+            $isEvaluated = $treatmentCourse->is_safety_evaluated;
+            $hasConflict = $isEvaluated && !empty($aiData['has_conflict']);
             $riskLevel = $treatmentCourse->safety_risk_level;
-            $conflicts = $aiData['conflicts'] ?? [];
+            $conflicts = is_array($aiData['conflicts'] ?? null) ? array_filter($aiData['conflicts'], 'is_array') : [];
+            $safetyBorder = $hasConflict ? 'border-danger' : ($isEvaluated ? 'border-success' : 'border-secondary');
+            $safetyHeader = $hasConflict ? 'bg-danger bg-opacity-10 text-danger' : ($isEvaluated ? 'bg-success bg-opacity-10 text-success' : 'bg-secondary bg-opacity-10 text-secondary');
         @endphp
 
-        <div class="content-card mb-3 {{ $hasConflict ? 'border-danger' : 'border-success' }}">
-            <div class="content-card-header py-2 {{ $hasConflict ? 'bg-danger bg-opacity-10 text-danger' : 'bg-success bg-opacity-10 text-success' }} d-flex justify-content-between align-items-center">
+        <div class="content-card mb-3 {{ $safetyBorder }}">
+            <div class="content-card-header py-2 {{ $safetyHeader }} d-flex justify-content-between align-items-center">
                 <span class="fw-bold d-flex align-items-center gap-2">
                     @if ($hasConflict)
                         <i class="bi bi-shield-exclamation fs-5"></i> CẢNH BÁO TƯƠNG TÁC & AN TOÀN DƯỢC LÂM SÀNG
-                    @else
+                    @elseif ($isEvaluated)
                         <i class="bi bi-shield-check fs-5"></i> THẨM ĐỊNH AN TOÀN DƯỢC LÂM SÀNG AI (AN TOÀN)
+                    @else
+                        <i class="bi bi-shield fs-5"></i> THẨM ĐỊNH AN TOÀN DƯỢC LÂM SÀNG AI
                     @endif
                 </span>
-                <span class="badge {{ $hasConflict ? 'bg-danger' : 'bg-success' }}">
-                    {{ $hasConflict ? 'Cần lưu ý đặc biệt' : 'Đã kiểm tra an toàn' }}
+                <span class="badge {{ $hasConflict ? 'bg-danger' : ($isEvaluated ? 'bg-success' : 'bg-secondary') }}">
+                    {{ $hasConflict ? 'Cần lưu ý đặc biệt' : ($isEvaluated ? 'Đã kiểm tra an toàn' : 'Chưa thẩm định') }}
                 </span>
             </div>
 
             <div class="content-card-body p-3">
-                @if ($hasConflict && !empty($conflicts))
+                @if (!$isEvaluated)
+                    <div class="d-flex align-items-center gap-3">
+                        <i class="bi bi-question-circle fs-1 text-secondary"></i>
+                        <div>
+                            <div class="fw-bold text-secondary fs-6">Đơn thuốc này chưa được thẩm định tương tác thuốc / dị ứng</div>
+                            <div class="text-muted small">
+                                Chưa có kết quả kiểm tra an toàn hợp lệ. Hãy mở chỉnh sửa và lưu lại đơn để hệ thống thẩm định, hoặc hỏi ý kiến bác sĩ / dược sĩ trước khi dùng đồng thời các thuốc.
+                            </div>
+                        </div>
+                    </div>
+                @elseif ($hasConflict)
                     <div class="alert alert-danger py-2 px-3 small mb-3">
                         <strong class="d-block mb-1 fs-6">
                             <i class="bi bi-exclamation-octagon-fill me-1"></i>
-                            {{ $aiData['summary'] ?? 'Phát hiện nguy cơ tương tác thuốc nguy hiểm trong đơn!' }}
+                            {{ is_string($aiData['summary'] ?? null) ? $aiData['summary'] : 'Phát hiện nguy cơ tương tác thuốc nguy hiểm trong đơn!' }}
                         </strong>
                         <div class="text-danger-emphasis">
-                            {{ $aiData['recommendations'] ?? 'Hãy tham khảo ý kiến bác sĩ điều trị hoặc dược sĩ lâm sàng trước khi cho người bệnh dùng đồng thời các loại thuốc trên.' }}
+                            {{ is_string($aiData['recommendations'] ?? null) ? $aiData['recommendations'] : 'Hãy tham khảo ý kiến bác sĩ điều trị hoặc dược sĩ lâm sàng trước khi cho người bệnh dùng đồng thời các loại thuốc trên.' }}
                         </div>
                     </div>
 
                     <!-- Danh sách các xung đột chi tiết -->
+                    @if (!empty($conflicts))
                     <div class="list-group list-group-flush mb-0 border rounded">
                         @foreach ($conflicts as $c)
                             <div class="list-group-item p-3 {{ ($c['severity'] ?? '') === 'danger' ? 'list-group-item-danger' : 'list-group-item-warning' }}">
@@ -203,17 +219,17 @@
                                     <span class="fw-bold">
                                         <i class="bi bi-slash-circle-fill me-1"></i>
                                         @if (($c['type'] ?? '') === 'duplicate_active_ingredient')
-                                            Trùng lặp hoạt chất gây quá liều: {{ $c['active_ingredient'] ?? 'Paracetamol' }}
+                                            Trùng lặp hoạt chất gây quá liều: {{ is_scalar($c['active_ingredient'] ?? null) && $c['active_ingredient'] !== '' ? $c['active_ingredient'] : 'Paracetamol' }}
                                         @elseif (($c['type'] ?? '') === 'allergy_conflict')
-                                            Chống chỉ định do dị ứng: {{ implode(', ', $c['medicines_involved'] ?? []) }}
+                                            Chống chỉ định do dị ứng: {{ implode(', ', array_map('strval', array_filter((array) ($c['medicines_involved'] ?? []), 'is_scalar'))) }}
                                         @else
-                                            Tương tác thuốc: {{ implode(' + ', $c['medicines_involved'] ?? []) }}
+                                            Tương tác thuốc: {{ implode(' + ', array_map('strval', array_filter((array) ($c['medicines_involved'] ?? []), 'is_scalar'))) }}
                                         @endif
                                     </span>
-                                    <span class="badge bg-danger">Mức độ: {{ strtoupper($c['severity'] ?? 'danger') }}</span>
+                                    <span class="badge bg-danger">Mức độ: {{ strtoupper(is_string($c['severity'] ?? null) ? $c['severity'] : 'danger') }}</span>
                                 </div>
-                                <div class="small mb-1">{{ $c['description'] ?? '' }}</div>
-                                @if (!empty($c['recommendation']))
+                                <div class="small mb-1">{{ is_scalar($c['description'] ?? null) ? $c['description'] : '' }}</div>
+                                @if (!empty($c['recommendation']) && is_scalar($c['recommendation']))
                                     <div class="small fw-semibold text-dark">
                                         <i class="bi bi-arrow-right-circle me-1 text-primary"></i>Khuyến cáo xử trí: {{ $c['recommendation'] }}
                                     </div>
@@ -221,6 +237,7 @@
                             </div>
                         @endforeach
                     </div>
+                    @endif
                 @else
                     <div class="d-flex align-items-center gap-3">
                         <i class="bi bi-patch-check-fill fs-1 text-success"></i>
@@ -286,12 +303,7 @@
                                 </td>
                                 <td>
                                     <span class="badge bg-light text-dark border small">
-                                        {{ match($item->instructions ?? '') {
-                                            'truoc_an' => 'Trước ăn 30p',
-                                            'trong_khi_an' => 'Trong bữa ăn',
-                                            'khong_phu_thuoc' => 'Không phụ thuộc',
-                                            default => 'Sau khi ăn no'
-                                        } }}
+                                        {{ $item->meal_timing_label }}
                                     </span>
                                 </td>
                             </tr>
@@ -573,71 +585,89 @@ function requestAiExplanation() {
     spinner.style.display = 'block';
     content.style.display = 'none';
 
+    // Chỉ dùng textContent cho dữ liệu AI trả về để tránh chèn mã độc (XSS)
+    const asText = (v, fallback) => (typeof v === 'string' || typeof v === 'number') && String(v).trim() !== '' ? String(v) : fallback;
+    const makeEl = (tag, className, text) => {
+        const el = document.createElement(tag);
+        if (className) el.className = className;
+        if (text !== undefined) el.textContent = text;
+        return el;
+    };
+    const fillList = (listEl, values, fallback) => {
+        listEl.replaceChildren();
+        const items = Array.isArray(values) ? values.map(v => asText(v, '')).filter(v => v !== '') : [];
+        (items.length ? items : [fallback]).forEach(v => listEl.appendChild(makeEl('li', '', v)));
+    };
+
     fetch('{{ route('treatment-courses.explain-ai', $treatmentCourse) }}', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
             'X-CSRF-TOKEN': '{{ csrf_token() }}'
         }
     })
-    .then(res => res.json())
+    .then(async res => {
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data || data.success === false) {
+            throw new Error((data && data.message) || 'Không thể kết nối Bác sĩ AI');
+        }
+        return data;
+    })
     .then(data => {
         spinner.style.display = 'none';
         content.style.display = 'block';
 
-        const exp = data.explanation || {};
+        const exp = (data.explanation && typeof data.explanation === 'object') ? data.explanation : {};
 
-        document.getElementById('aiOverviewText').textContent = exp.overview || 'Đợt điều trị giúp ổn định và cải thiện triệu chứng cho người bệnh.';
+        document.getElementById('aiOverviewText').textContent = asText(exp.overview, 'Đợt điều trị giúp ổn định và cải thiện triệu chứng cho người bệnh.');
 
         // Render guidelines
         const guidelinesContainer = document.getElementById('aiGuidelinesContainer');
-        guidelinesContainer.innerHTML = '';
-        if (exp.guidelines_per_medicine && exp.guidelines_per_medicine.length > 0) {
+        guidelinesContainer.replaceChildren();
+        if (Array.isArray(exp.guidelines_per_medicine)) {
             exp.guidelines_per_medicine.forEach(g => {
-                const col = document.createElement('div');
-                col.className = 'col-12 col-md-6';
-                col.innerHTML = `
-                    <div class="p-2 border rounded bg-light h-100">
-                        <strong class="text-primary d-block small">${g.medicine_name || 'Thuốc'}</strong>
-                        <div class="small text-dark mb-1"><strong>Tác dụng:</strong> ${g.purpose || 'Điều trị'}</div>
-                        <div class="small text-muted mb-1"><strong>Thời điểm:</strong> ${g.meal_timing || 'Sau ăn'}</div>
-                        ${g.special_instructions ? `<div class="small text-secondary" style="font-size: 11px;"><em>${g.special_instructions}</em></div>` : ''}
-                    </div>
-                `;
+                if (!g || typeof g !== 'object') return;
+                const col = makeEl('div', 'col-12 col-md-6');
+                const box = makeEl('div', 'p-2 border rounded bg-light h-100');
+                box.appendChild(makeEl('strong', 'text-primary d-block small', asText(g.medicine_name, 'Thuốc')));
+
+                const purpose = makeEl('div', 'small text-dark mb-1');
+                purpose.appendChild(makeEl('strong', '', 'Tác dụng: '));
+                purpose.appendChild(document.createTextNode(asText(g.purpose, 'Điều trị')));
+                box.appendChild(purpose);
+
+                const timing = makeEl('div', 'small text-muted mb-1');
+                timing.appendChild(makeEl('strong', '', 'Thời điểm: '));
+                timing.appendChild(document.createTextNode(asText(g.meal_timing, 'Sau ăn')));
+                box.appendChild(timing);
+
+                const special = asText(g.special_instructions, '');
+                if (special) {
+                    const note = makeEl('div', 'small text-secondary');
+                    note.style.fontSize = '11px';
+                    note.appendChild(makeEl('em', '', special));
+                    box.appendChild(note);
+                }
+
+                col.appendChild(box);
                 guidelinesContainer.appendChild(col);
             });
         }
 
         // Render dietary
-        const dietaryList = document.getElementById('aiDietaryList');
-        dietaryList.innerHTML = '';
-        if (exp.dietary_precautions && exp.dietary_precautions.length > 0) {
-            exp.dietary_precautions.forEach(d => {
-                const li = document.createElement('li');
-                li.textContent = d;
-                dietaryList.appendChild(li);
-            });
-        } else {
-            dietaryList.innerHTML = '<li>Uống nhiều nước ấm, tránh rượu bia và chất kích thích.</li>';
-        }
+        fillList(document.getElementById('aiDietaryList'), exp.dietary_precautions, 'Uống nhiều nước ấm, tránh rượu bia và chất kích thích.');
 
         // Render warnings
-        const warningList = document.getElementById('aiDoctorWarningList');
-        warningList.innerHTML = '';
-        if (exp.when_to_see_doctor && exp.when_to_see_doctor.length > 0) {
-            exp.when_to_see_doctor.forEach(w => {
-                const li = document.createElement('li');
-                li.textContent = w;
-                warningList.appendChild(li);
-            });
-        } else {
-            warningList.innerHTML = '<li>Sốt cao không hạ trên 39°C, phát ban hoặc khó thở đột ngột.</li>';
-        }
+        fillList(document.getElementById('aiDoctorWarningList'), exp.when_to_see_doctor, 'Sốt cao không hạ trên 39°C, phát ban hoặc khó thở đột ngột.');
     })
     .catch(err => {
         spinner.style.display = 'none';
         content.style.display = 'block';
-        document.getElementById('aiOverviewText').textContent = 'Đã hoàn tất phân tích phác đồ. Hãy uống thuốc đều đặn theo đúng chỉ định của bác sĩ.';
+        document.getElementById('aiOverviewText').textContent = 'Không thể lấy lời giải thích từ Bác sĩ AI lúc này (' + err.message + '). Vui lòng thử lại sau và luôn uống thuốc theo đúng chỉ định của bác sĩ.';
+        document.getElementById('aiGuidelinesContainer').replaceChildren();
+        document.getElementById('aiDietaryList').replaceChildren();
+        document.getElementById('aiDoctorWarningList').replaceChildren();
     });
 }
 </script>

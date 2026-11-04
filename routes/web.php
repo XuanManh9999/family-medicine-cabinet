@@ -26,18 +26,18 @@ Route::get('/landing', fn () => view('welcome'))->name('landing');
 // Nhóm Routes cho Khách (Chưa đăng nhập)
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
-    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 
     Route::get('/register', [AuthController::class, 'showRegisterForm'])->name('register');
-    Route::post('/register', [AuthController::class, 'register']);
+    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:10,1');
 
     // Quên mật khẩu & Đặt lại qua mã OTP
     Route::get('/forgot-password', [AuthController::class, 'showForgotPasswordForm'])->name('password.request');
-    Route::post('/forgot-password', [AuthController::class, 'sendResetOtp'])->name('password.email');
+    Route::post('/forgot-password', [AuthController::class, 'sendResetOtp'])->middleware('throttle:5,1')->name('password.email');
     Route::get('/verify-otp', [AuthController::class, 'showVerifyOtpForm'])->name('password.otp');
-    Route::post('/verify-otp', [AuthController::class, 'verifyOtp'])->name('password.otp.verify');
+    Route::post('/verify-otp', [AuthController::class, 'verifyOtp'])->middleware('throttle:10,1')->name('password.otp.verify');
     Route::get('/reset-password', [AuthController::class, 'showResetPasswordForm'])->name('password.reset');
-    Route::post('/reset-password', [AuthController::class, 'resetPassword'])->name('password.update');
+    Route::post('/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:10,1')->name('password.update');
 });
 
 // Nhóm Routes yêu cầu Đăng nhập
@@ -50,6 +50,11 @@ Route::middleware('auth')->group(function () {
     // Hồ sơ người dùng & Gia đình
     Route::get('/profile', [AuthController::class, 'profile'])->name('profile');
     Route::post('/profile', [AuthController::class, 'updateProfile'])->name('profile.update');
+
+    // Chủ hộ quản lý tài khoản trong gia đình (chỉ định Bác sĩ, gỡ tài khoản, tạo lại mã mời)
+    Route::patch('/family/users/{user}/role', [\App\Http\Controllers\FamilyAccountController::class, 'updateRole'])->name('family.users.role');
+    Route::delete('/family/users/{user}', [\App\Http\Controllers\FamilyAccountController::class, 'remove'])->name('family.users.remove');
+    Route::post('/family/regenerate-code', [\App\Http\Controllers\FamilyAccountController::class, 'regenerateCode'])->name('family.regenerate-code');
 
     // Tủ thuốc gia đình
     Route::get('/cabinet', [CabinetItemController::class, 'index'])->name('cabinet.index');
@@ -64,23 +69,32 @@ Route::middleware('auth')->group(function () {
     Route::patch('/cabinet/items/{cabinetItem}/quantity', [CabinetItemController::class, 'updateQuantity'])->name('cabinet.items.quantity');
     Route::delete('/cabinet/items/{cabinetItem}', [CabinetItemController::class, 'destroy'])->name('cabinet.items.destroy');
 
+    // Đề nghị nhập thuốc: Chủ hộ / Thành viên gửi, Bác sĩ duyệt
+    Route::get('/cabinet/requests', [\App\Http\Controllers\CabinetRequestController::class, 'index'])->name('cabinet.requests.index');
+    Route::get('/cabinet/requests/create', [\App\Http\Controllers\CabinetRequestController::class, 'create'])->name('cabinet.requests.create');
+    Route::post('/cabinet/requests', [\App\Http\Controllers\CabinetRequestController::class, 'store'])->name('cabinet.requests.store');
+    Route::get('/cabinet/requests/{cabinetRequest}/review', [\App\Http\Controllers\CabinetRequestController::class, 'review'])->name('cabinet.requests.review');
+    Route::post('/cabinet/requests/{cabinetRequest}/approve', [\App\Http\Controllers\CabinetRequestController::class, 'approve'])->name('cabinet.requests.approve');
+    Route::post('/cabinet/requests/{cabinetRequest}/reject', [\App\Http\Controllers\CabinetRequestController::class, 'reject'])->name('cabinet.requests.reject');
+    Route::post('/cabinet/requests/{cabinetRequest}/cancel', [\App\Http\Controllers\CabinetRequestController::class, 'cancel'])->name('cabinet.requests.cancel');
+
     // Phân hệ Quản lý Thành viên & Hồ sơ Sức khỏe gia đình
     Route::resource('members', FamilyMemberController::class);
 
     // Phân hệ Đơn thuốc & Đợt điều trị ngoại trú
     Route::patch('/treatment-courses/{treatmentCourse}/toggle-status', [TreatmentCourseController::class, 'toggleStatus'])->name('treatment-courses.toggle-status');
-    Route::post('/treatment-courses/{treatmentCourse}/explain-ai', [TreatmentCourseController::class, 'explainAi'])->name('treatment-courses.explain-ai');
+    Route::post('/treatment-courses/{treatmentCourse}/explain-ai', [TreatmentCourseController::class, 'explainAi'])->middleware('throttle:ai')->name('treatment-courses.explain-ai');
     Route::resource('treatment-courses', TreatmentCourseController::class);
 
     // Phân hệ Lịch uống thuốc & Nhật ký tuân thủ điều trị
     Route::get('/schedules/calendar-events', [MedicationScheduleController::class, 'calendarEvents'])->name('schedules.calendar-events');
     Route::post('/schedules/log', [MedicationScheduleController::class, 'recordLog'])->name('schedules.log');
     Route::patch('/schedules/{schedule}/toggle', [MedicationScheduleController::class, 'toggle'])->name('schedules.toggle');
-    Route::resource('schedules', MedicationScheduleController::class);
+    Route::resource('schedules', MedicationScheduleController::class)->except(['show']);
 
     // Phân hệ Thống kê Chi phí thuốc & Viện phí gia đình
     Route::get('/expenses/export-csv', [MedicineExpenseController::class, 'exportCsv'])->name('expenses.export-csv');
-    Route::resource('expenses', MedicineExpenseController::class);
+    Route::resource('expenses', MedicineExpenseController::class)->except(['show']);
 
     // Phân hệ Tra cứu Thuốc chuẩn Việt Nam (Master Data)
     Route::get('/medicines', [MedicineController::class, 'index'])->name('medicines.index');
@@ -89,8 +103,8 @@ Route::middleware('auth')->group(function () {
 
     // Phân hệ Trợ lý Y tế & Dược sĩ Gia đình AI
     Route::get('/ai-assistant', [AiAssistantController::class, 'index'])->name('ai-assistant.index');
-    Route::post('/ai-assistant/scan', [AiAssistantController::class, 'scanPrescription'])->name('ai-assistant.scan');
-    Route::post('/ai-assistant/chat', [AiAssistantController::class, 'chat'])->name('ai-assistant.chat');
+    Route::post('/ai-assistant/scan', [AiAssistantController::class, 'scanPrescription'])->middleware('throttle:ai')->name('ai-assistant.scan');
+    Route::post('/ai-assistant/chat', [AiAssistantController::class, 'chat'])->middleware('throttle:ai')->name('ai-assistant.chat');
 
     // Phân hệ Trung tâm Cảnh báo Thông minh
     Route::post('/alerts/scan', [SmartAlertController::class, 'scan'])->name('alerts.scan');
@@ -104,7 +118,7 @@ Route::middleware('auth')->group(function () {
 Route::middleware(['auth', 'system_admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'index'])->name('dashboard');
     Route::post('/scan-alerts', [\App\Http\Controllers\Admin\AdminDashboardController::class, 'scanAlerts'])->name('scan-alerts');
-    Route::resource('medicines', \App\Http\Controllers\Admin\AdminMedicineController::class);
+    Route::resource('medicines', \App\Http\Controllers\Admin\AdminMedicineController::class)->except(['show']);
     Route::resource('categories', \App\Http\Controllers\Admin\AdminCategoryController::class)->except(['create', 'show', 'edit']);
     Route::get('/families', [\App\Http\Controllers\Admin\AdminFamilyController::class, 'index'])->name('families.index');
     Route::get('/families/{family}', [\App\Http\Controllers\Admin\AdminFamilyController::class, 'show'])->name('families.show');

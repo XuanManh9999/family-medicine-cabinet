@@ -99,12 +99,19 @@ class AiAssistantTest extends TestCase
         ]);
         $response->assertJsonStructure([
             'success',
-            'image_url',
+            'is_mock',
             'ocr_data' => [
                 'hospital_doctor',
                 'diagnosis',
                 'medicines',
             ],
+        ]);
+
+        // Chưa có API key: kết quả phải được gắn cờ minh họa và không được thẩm định "an toàn"
+        $response->assertJson([
+            'is_mock' => true,
+            'ocr_data' => ['is_mock' => true],
+            'safety_report' => null,
         ]);
     }
 }

@@ -86,8 +86,8 @@
                                 <li class="dropdown-header fw-bold text-primary">Thuốc trong Tủ thuốc:</li>
                                 @forelse ($cabinetItems as $ci)
                                     <li>
-                                        <a class="dropdown-item py-1" href="javascript:void(0)" onclick="selectMedicineQuickly('{{ addslashes($ci->medicine?->name ?? $ci->custom_medicine_name) }}', '{{ $ci->unit }}')">
-                                            <i class="bi bi-box-seam me-1 text-success"></i>{{ $ci->medicine?->name ?? $ci->custom_medicine_name }} (Còn: {{ $ci->current_quantity }} {{ $ci->unit }})
+                                        <a class="dropdown-item py-1" href="javascript:void(0)" onclick="selectMedicineQuickly('{{ addslashes($ci->medicine?->name ?? $ci->display_name) }}', '{{ $ci->unit }}')">
+                                            <i class="bi bi-box-seam me-1 text-success"></i>{{ $ci->medicine?->name ?? $ci->display_name }} (Còn: {{ (float) $ci->quantity }} {{ $ci->unit }})
                                         </a>
                                     </li>
                                 @empty

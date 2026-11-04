@@ -60,7 +60,7 @@
                                 Số tiền chi tiêu (VNĐ) <span class="text-danger">*</span>
                             </label>
                             <div class="input-group">
-                                <input type="number" id="amount" name="amount" required min="0" step="1000"
+                                <input type="number" id="amount" name="amount" required min="0" max="9999999999.99" step="any"
                                        value="{{ old('amount', $expense->amount ?? 0) }}"
                                        class="form-control form-control-lg fw-bold text-success @error('amount') is-invalid @enderror"
                                        placeholder="0">
@@ -84,7 +84,7 @@
                                 Ngày chi tiêu / Mua thuốc <span class="text-danger">*</span>
                             </label>
                             <input type="date" id="purchase_date" name="purchase_date" required
-                                   max="{{ date('Y-m-d') }}"
+                                   max="{{ today()->toDateString() }}"
                                    value="{{ old('purchase_date', $expense->purchase_date ? $expense->purchase_date->format('Y-m-d') : date('Y-m-d')) }}"
                                    class="form-control form-control-lg @error('purchase_date') is-invalid @enderror">
                             @error('purchase_date')<div class="invalid-feedback">{{ $message }}</div>@enderror

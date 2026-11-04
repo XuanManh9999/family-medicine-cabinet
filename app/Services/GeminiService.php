@@ -2,9 +2,9 @@
 
 namespace App\Services;
 
-use Exception;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class GeminiService
 {
@@ -75,7 +75,7 @@ PROMPT;
 
         if (empty($this->apiKey)) {
             Log::warning('Gemini API key is not configured. Returning fallback mock response.');
-            return $this->getMockPrescriptionAnalysis();
+            return $this->getMockPrescriptionAnalysis('Chưa cấu hình GEMINI_API_KEY nên hệ thống chưa đọc được ảnh thật.');
         }
 
         try {
@@ -104,20 +104,16 @@ PROMPT;
                 ],
             ];
 
-            $response = Http::timeout(60)
-                ->post("{$this->baseUrl}/models/{$this->model}:generateContent?key={$this->apiKey}", $payload);
-
-            if ($response->successful()) {
-                $rawText = $response->json('candidates.0.content.parts.0.text');
-                return $this->cleanAndParseJson($rawText);
-            }
-
-            Log::error('Gemini OCR API request failed', ['status' => $response->status(), 'body' => $response->body()]);
-            return $this->getMockPrescriptionAnalysis();
-        } catch (Exception $e) {
-            Log::error('Gemini OCR Exception: ' . $e->getMessage());
-            return $this->getMockPrescriptionAnalysis();
+            $result = $this->generate($payload, 60, 'OCR');
+        } catch (Throwable $e) {
+            $result = null;
         }
+
+        if (is_array($result['medicines'] ?? null)) {
+            return $result;
+        }
+
+        return $this->getMockPrescriptionAnalysis('Gemini AI không đọc được ảnh lúc này (lỗi kết nối hoặc phản hồi không hợp lệ).');
     }
 
     /**
@@ -208,20 +204,48 @@ PROMPT;
                 ],
             ];
 
-            $response = Http::timeout(45)
-                ->post("{$this->baseUrl}/models/{$this->model}:generateContent?key={$this->apiKey}", $payload);
+            $result = $this->generate($payload, 45, 'Drug Interaction');
+        } catch (Throwable $e) {
+            $result = null;
+        }
 
-            if ($response->successful()) {
-                $rawText = $response->json('candidates.0.content.parts.0.text');
-                return $this->cleanAndParseJson($rawText);
-            }
-
-            Log::error('Gemini Drug Interaction API error', ['status' => $response->status(), 'body' => $response->body()]);
-            return $this->evaluateLocalRuleInteractions($medicines, $patientHealthProfile);
-        } catch (Exception $e) {
-            Log::error('Gemini Drug Interaction Exception: ' . $e->getMessage());
+        // Phản hồi thiếu trường bắt buộc thì không được coi là "an toàn": dùng bộ luật cục bộ
+        if (!is_array($result) || !array_key_exists('has_conflict', $result)) {
             return $this->evaluateLocalRuleInteractions($medicines, $patientHealthProfile);
         }
+
+        return $this->normalizeInteractionResult($result);
+    }
+
+    /**
+     * Chuẩn hóa kiểu dữ liệu kết quả thẩm định tương tác để giao diện hiển thị an toàn
+     */
+    protected function normalizeInteractionResult(array $result): array
+    {
+        $result['has_conflict'] = (bool) $result['has_conflict'];
+        $result['conflicts'] = array_values(array_filter(
+            array_map(function ($conflict) {
+                if (!is_array($conflict)) {
+                    return null;
+                }
+                $involved = $conflict['medicines_involved'] ?? [];
+                $conflict['medicines_involved'] = is_array($involved) ? array_map('strval', $involved) : [(string) $involved];
+                foreach (['type', 'severity', 'active_ingredient', 'description', 'recommendation'] as $key) {
+                    if (isset($conflict[$key]) && !is_string($conflict[$key])) {
+                        $conflict[$key] = is_scalar($conflict[$key]) ? (string) $conflict[$key] : json_encode($conflict[$key], JSON_UNESCAPED_UNICODE);
+                    }
+                }
+                return $conflict;
+            }, is_array($result['conflicts'] ?? null) ? $result['conflicts'] : [])
+        ));
+
+        if (isset($result['recommendations']) && !is_string($result['recommendations'])) {
+            $result['recommendations'] = is_array($result['recommendations'])
+                ? implode(' ', array_map(fn ($r) => is_scalar($r) ? (string) $r : '', $result['recommendations']))
+                : '';
+        }
+
+        return $result;
     }
 
     /**
@@ -306,19 +330,16 @@ PROMPT;
                 ],
             ];
 
-            $response = Http::timeout(45)
-                ->post("{$this->baseUrl}/models/{$this->model}:generateContent?key={$this->apiKey}", $payload);
-
-            if ($response->successful()) {
-                $rawText = $response->json('candidates.0.content.parts.0.text');
-                return $this->cleanAndParseJson($rawText);
-            }
-
-            return $this->getMockPrescriptionExplanation($prescriptionData);
-        } catch (Exception $e) {
-            Log::error('Gemini Explainer Exception: ' . $e->getMessage());
-            return $this->getMockPrescriptionExplanation($prescriptionData);
+            $result = $this->generate($payload, 45, 'Explainer');
+        } catch (Throwable $e) {
+            $result = null;
         }
+
+        if (is_array($result) && is_array($result['guidelines_per_medicine'] ?? null)) {
+            return $result;
+        }
+
+        return $this->getMockPrescriptionExplanation($prescriptionData);
     }
 
     /**
@@ -399,19 +420,53 @@ PROMPT;
                 ],
             ];
 
-            $response = Http::timeout(45)
-                ->post("{$this->baseUrl}/models/{$this->model}:generateContent?key={$this->apiKey}", $payload);
+            $result = $this->generate($payload, 45, 'Chat');
+        } catch (Throwable $e) {
+            $result = null;
+        }
 
-            if ($response->successful()) {
-                $rawText = $response->json('candidates.0.content.parts.0.text');
-                return $this->cleanAndParseJson($rawText);
+        if (is_array($result) && is_string($result['answer'] ?? null) && trim($result['answer']) !== '') {
+            return $result;
+        }
+
+        return $this->getLocalRuleChatResponse($question, $familyContext);
+    }
+
+    /**
+     * Gửi yêu cầu generateContent tới Gemini và trả về JSON đã giải mã, hoặc null khi lỗi
+     * (API key gửi qua header để không lộ trong URL / log lỗi kết nối)
+     */
+    protected function generate(array $payload, int $timeout, string $context): ?array
+    {
+        try {
+            $response = Http::timeout($timeout)
+                ->withHeaders(['x-goog-api-key' => (string) $this->apiKey])
+                ->post("{$this->baseUrl}/models/{$this->model}:generateContent", $payload);
+
+            if (!$response->successful()) {
+                Log::error("Gemini {$context} API error", [
+                    'status' => $response->status(),
+                    'body' => mb_substr($response->body(), 0, 2000),
+                ]);
+                return null;
             }
 
-            Log::error('Gemini Chat API error', ['status' => $response->status(), 'body' => $response->body()]);
-            return $this->getLocalRuleChatResponse($question, $familyContext);
-        } catch (Exception $e) {
-            Log::error('Gemini Chat Exception: ' . $e->getMessage());
-            return $this->getLocalRuleChatResponse($question, $familyContext);
+            $rawText = $response->json('candidates.0.content.parts.0.text');
+            if (!is_string($rawText) || trim($rawText) === '') {
+                Log::warning("Gemini {$context} returned no text", [
+                    'finish_reason' => $response->json('candidates.0.finishReason'),
+                    'block_reason' => $response->json('promptFeedback.blockReason'),
+                ]);
+                return null;
+            }
+
+            $decoded = $this->cleanAndParseJson($rawText);
+
+            return array_key_exists('raw_text', $decoded) ? null : $decoded;
+        } catch (Throwable $e) {
+            $message = $this->apiKey ? str_replace($this->apiKey, '***', $e->getMessage()) : $e->getMessage();
+            Log::error("Gemini {$context} exception: {$message}");
+            return null;
         }
     }
 
@@ -731,11 +786,13 @@ PROMPT;
     }
 
     /**
-     * Dữ liệu giả lập mẫu cho tính năng Vision OCR
+     * Dữ liệu MINH HỌA cho tính năng Vision OCR (không phải kết quả đọc ảnh thật, luôn gắn cờ is_mock)
      */
-    protected function getMockPrescriptionAnalysis(): array
+    protected function getMockPrescriptionAnalysis(string $reason = ''): array
     {
         return [
+            'is_mock' => true,
+            'mock_notice' => trim($reason . ' Kết quả bên dưới chỉ là ĐƠN THUỐC MINH HỌA, không phải nội dung ảnh của bạn. Tuyệt đối không dùng để uống thuốc.'),
             'hospital_doctor' => 'Bệnh viện Bạch Mai - BS. Nguyễn Văn Tuấn',
             'diagnosis' => 'Viêm phế quản cấp tính / Sốt siêu vi',
             'date_prescribed' => date('Y-m-d'),

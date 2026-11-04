@@ -16,7 +16,7 @@
     </div>
 
     <div class="d-flex align-items-center gap-2">
-        @if (auth()->user()->canManageCabinet())
+        @if (auth()->user()->canManageCabinet() || auth()->user()->isFamilyAdmin())
             <form method="POST" action="{{ route('alerts.scan') }}" class="d-inline" id="scanForm">
                 @csrf
                 <button type="submit" class="btn btn-sm btn-erp-primary shadow-sm" id="btnScan" onclick="this.innerHTML='<span class=\'spinner-border spinner-border-sm me-1\'></span>Đang quét...';">
@@ -120,8 +120,11 @@
                     <option value="expired" @selected($type === 'expired')>Thuốc hết hạn sử dụng</option>
                     <option value="near_expiry" @selected($type === 'near_expiry')>Thuốc cận date (< 30 ngày)</option>
                     <option value="low_stock" @selected($type === 'low_stock')>Thuốc/Vật tư sắp hết hàng</option>
+                    <option value="out_of_stock" @selected($type === 'out_of_stock')>Thuốc/Vật tư đã hết hàng</option>
                     <option value="drug_interaction" @selected($type === 'drug_interaction')>Tương tác thuốc & Trùng hoạt chất</option>
                     <option value="schedule_reminder" @selected($type === 'schedule_reminder')>Nhắc nhở tuân thủ lịch uống</option>
+                    <option value="missed_dose" @selected($type === 'missed_dose')>Quá giờ chưa uống thuốc</option>
+                    <option value="cabinet_request" @selected($type === 'cabinet_request')>Đề nghị nhập thuốc</option>
                 </select>
             </div>
 
@@ -274,12 +277,14 @@
                     Không phát hiện thuốc nào hết hạn sử dụng, thuốc cận date hay nguy cơ quá liều hoạt chất. 
                     Bạn có thể nhấn nút quét để kiểm tra lại bất cứ lúc nào.
                 </p>
-                <form method="POST" action="{{ route('alerts.scan') }}" class="d-inline">
-                    @csrf
-                    <button type="submit" class="btn btn-sm btn-erp-primary shadow-sm">
-                        <i class="bi bi-arrow-repeat me-1"></i>Quét kiểm tra tủ thuốc ngay
-                    </button>
-                </form>
+                @if (auth()->user()->canManageCabinet() || auth()->user()->isFamilyAdmin())
+                    <form method="POST" action="{{ route('alerts.scan') }}" class="d-inline">
+                        @csrf
+                        <button type="submit" class="btn btn-sm btn-erp-primary shadow-sm">
+                            <i class="bi bi-arrow-repeat me-1"></i>Quét kiểm tra tủ thuốc ngay
+                        </button>
+                    </form>
+                @endif
             </div>
         @endif
     </div>

@@ -13,6 +13,8 @@ class SmartAlert extends Model
     protected $fillable = [
         'family_id',
         'user_id',
+        'cabinet_item_id',
+        'medication_schedule_id',
         'type',
         'level',
         'title',
@@ -36,6 +38,11 @@ class SmartAlert extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function cabinetItem()
+    {
+        return $this->belongsTo(CabinetItem::class);
     }
 
     // Scopes
@@ -92,7 +99,10 @@ class SmartAlert extends Model
             'expired' => 'Thuốc đã hết hạn',
             'near_expiry' => 'Cận date (< 30 ngày)',
             'low_stock' => 'Sắp hết tồn kho',
+            'out_of_stock' => 'Đã hết hàng',
             'schedule_reminder' => 'Nhắc nhở uống thuốc',
+            'missed_dose' => 'Quá giờ chưa uống thuốc',
+            'cabinet_request' => 'Đề nghị nhập thuốc',
             'drug_interaction' => 'Tương tác thuốc nguy hiểm',
             default => 'Cảnh báo y tế',
         };
@@ -104,7 +114,10 @@ class SmartAlert extends Model
             'expired' => 'bi-exclamation-octagon-fill text-danger',
             'near_expiry' => 'bi-hourglass-split text-warning',
             'low_stock' => 'bi-box-seam text-warning',
+            'out_of_stock' => 'bi-box2 text-secondary',
             'schedule_reminder' => 'bi-alarm text-info',
+            'missed_dose' => 'bi-alarm-fill text-warning',
+            'cabinet_request' => 'bi-inbox text-primary',
             'drug_interaction' => 'bi-capsule-pill text-danger',
             default => 'bi-bell text-secondary',
         };

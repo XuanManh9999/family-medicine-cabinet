@@ -401,9 +401,18 @@
                 </li>
 
                 <li class="main-nav-item">
-                    <a href="{{ route('cabinet.index') }}" class="main-nav-link {{ request()->routeIs('cabinet.*') ? 'active' : '' }}">
+                    @php
+                        // Bác sĩ thấy ngay số đề nghị nhập thuốc đang chờ duyệt
+                        $navPendingRequests = ($authUser && $authUser->family_id && $authUser->canManageCabinet())
+                            ? \App\Models\CabinetRequest::where('family_id', $authUser->family_id)->pending()->count()
+                            : 0;
+                    @endphp
+                    <a href="{{ $navPendingRequests > 0 ? route('cabinet.requests.index', ['status' => 'pending']) : route('cabinet.index') }}" class="main-nav-link {{ request()->routeIs('cabinet.*') ? 'active' : '' }}">
                         <i class="bi bi-prescription2"></i>
                         <span>Tủ thuốc</span>
+                        @if ($navPendingRequests > 0)
+                            <span class="badge bg-warning text-dark rounded-pill" style="font-size: 10px;" title="Đề nghị nhập thuốc chờ duyệt">{{ $navPendingRequests }}</span>
+                        @endif
                     </a>
                 </li>
 
@@ -498,6 +507,22 @@
             </div>
         @endif
 
+        {{-- Lỗi kiểm tra dữ liệu từ các form không tự hiển thị lỗi (thêm nhanh vào tủ, nhập Excel, cập nhật tồn kho...) --}}
+        @if ($errors->any())
+            <div class="alert alert-danger alert-dismissible fade show py-2 px-3 mb-3" role="alert">
+                <div class="d-flex align-items-center mb-1">
+                    <i class="bi bi-exclamation-triangle-fill me-2 fs-6"></i>
+                    <strong>Dữ liệu chưa hợp lệ, vui lòng kiểm tra lại:</strong>
+                    <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+                </div>
+                <ul class="mb-0 ps-4 small">
+                    @foreach (array_unique($errors->all()) as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
         <!-- THANH NHẬN BIẾT VAI TRÒ & QUYỀN HẠN TÀI KHOẢN -->
         @if ($authUser && $authUser->isMember())
             <div class="alert alert-light border py-2 px-3 mb-3 d-flex align-items-center justify-content-between shadow-sm flex-wrap gap-2" style="background-color: #f8fafc; font-size: 12.5px; border-left: 4px solid #64748b !important;">
@@ -510,7 +535,21 @@
                     </span>
                 </div>
                 <span class="text-muted small" style="font-size: 11.5px;">
-                    <i class="bi bi-shield-check text-primary me-1"></i>Quản trị kho & sổ hộ do <strong>Chủ hộ</strong> phụ trách
+                    <i class="bi bi-shield-check text-primary me-1"></i>Tủ thuốc & đơn thuốc do <strong>Bác sĩ</strong> phụ trách, sổ hộ do <strong>Chủ hộ</strong> quản lý
+                </span>
+            </div>
+        @elseif ($authUser && $authUser->isFamilyAdmin())
+            <div class="alert alert-primary bg-primary bg-opacity-10 border-primary border-opacity-25 py-2 px-3 mb-3 d-flex align-items-center justify-content-between shadow-sm flex-wrap gap-2" style="font-size: 12.5px; border-left: 4px solid #2563eb !important;">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-primary text-white py-1 px-2" style="font-size: 11px;">
+                        <i class="bi bi-house-door-fill me-1"></i>Chủ hộ
+                    </span>
+                    <span class="text-primary-emphasis">
+                        Bạn quản lý <strong>sổ thành viên & hồ sơ sức khỏe</strong>, <strong>chi phí y tế</strong> và cảnh báo của gia đình. Tủ thuốc, đơn thuốc và lịch uống ở chế độ xem.
+                    </span>
+                </div>
+                <span class="text-muted small" style="font-size: 11.5px;">
+                    <i class="bi bi-heart-pulse text-success me-1"></i>Thêm thuốc, kê đơn & lập lịch do <strong>Bác sĩ</strong> phụ trách
                 </span>
             </div>
         @elseif ($authUser && $authUser->isDoctorOrCaregiver())
@@ -520,7 +559,7 @@
                         <i class="bi bi-heart-pulse-fill me-1"></i>Bác sĩ / Chăm sóc y tế
                     </span>
                     <span class="text-success-emphasis">
-                        Bạn có thẩm quyền chuyên môn: <strong>Kê đơn đợt điều trị</strong>, <strong>thiết lập lịch uống thuốc</strong> và theo dõi y tế của các thành viên.
+                        Bạn có thẩm quyền chuyên môn: <strong>Quản lý tủ thuốc</strong>, <strong>kê đơn đợt điều trị</strong>, <strong>thiết lập lịch uống thuốc</strong> và theo dõi y tế của các thành viên.
                     </span>
                 </div>
             </div>

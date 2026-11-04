@@ -184,10 +184,12 @@
             </div>
 
             <div class="d-flex align-items-center gap-3">
-                <a href="{{ route('dashboard') }}" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1 shadow-sm" style="font-size: 12px;">
-                    <i class="bi bi-house-door"></i>
-                    <span>Về Giao diện Gia đình</span>
-                </a>
+                @if (auth()->user()?->family_id)
+                    <a href="{{ route('dashboard') }}" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1 shadow-sm" style="font-size: 12px;">
+                        <i class="bi bi-house-door"></i>
+                        <span>Về Giao diện Gia đình</span>
+                    </a>
+                @endif
 
                 <div class="dropdown">
                     <a href="#" class="d-flex align-items-center gap-2 text-decoration-none text-dark" data-bs-toggle="dropdown">

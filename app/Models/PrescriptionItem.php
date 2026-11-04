@@ -18,6 +18,7 @@ class PrescriptionItem extends Model
         'instructions',
         'total_prescribed_quantity',
         'unit',
+        'meal_timing',
     ];
 
     protected function casts(): array
@@ -40,6 +41,27 @@ class PrescriptionItem extends Model
     public function schedules()
     {
         return $this->hasMany(MedicationSchedule::class);
+    }
+
+    /**
+     * Thời điểm uống so với bữa ăn: ưu tiên cột trên thuốc, dữ liệu cũ thì lấy theo lịch uống đầu tiên
+     */
+    public function getEffectiveMealTimingAttribute(): string
+    {
+        if (!empty($this->attributes['meal_timing'])) {
+            return $this->attributes['meal_timing'];
+        }
+        return $this->schedules->first()?->meal_timing ?? 'sau_an';
+    }
+
+    public function getMealTimingLabelAttribute(): string
+    {
+        return match ($this->effective_meal_timing) {
+            'truoc_an' => 'Trước ăn 30p',
+            'trong_khi_an' => 'Trong bữa ăn',
+            'khong_phu_thuoc' => 'Không phụ thuộc',
+            default => 'Sau khi ăn no',
+        };
     }
 
     public function getDosageMorningAttribute(): ?string

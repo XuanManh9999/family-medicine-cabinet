@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Family;
+use App\Support\DateRangeFilter;
 use Illuminate\Http\Request;
 
 class AdminFamilyController extends Controller
@@ -31,25 +32,35 @@ class AdminFamilyController extends Controller
             });
         }
 
+        $dateFilter = DateRangeFilter::fromRequest($request);
+        $dateFilter->apply($query);
+
         $families = $query->latest()->paginate(15)->withQueryString();
 
-        return view('admin.families.index', compact('families', 'search'));
+        return view('admin.families.index', compact('families', 'search', 'dateFilter'));
     }
 
     /**
      * Chi tiết một Hộ gia đình
      */
-    public function show(Family $family)
+    public function show(Request $request, Family $family)
     {
+        // Lọc đơn điều trị theo ngày bắt đầu và chi phí theo ngày mua
+        $dateFilter = DateRangeFilter::fromRequest($request);
+
         $family->load([
             'creator',
             'users',
             'members.medicationSchedules',
             'cabinetItems.medicine.category',
-            'treatmentCourses.familyMember',
-            'expenses' => fn ($q) => $q->latest()->take(10),
+            'treatmentCourses' => fn ($q) => $dateFilter->apply($q, 'start_date')->with('familyMember')->orderByDesc('start_date'),
         ]);
 
-        return view('admin.families.show', compact('family'));
+        $expensesQuery = $dateFilter->apply($family->expenses()->getQuery(), 'purchase_date');
+        $expenseTotal = (float) (clone $expensesQuery)->sum('amount');
+        $expenseCount = (clone $expensesQuery)->count();
+        $expenses = $expensesQuery->with('familyMember')->orderByDesc('purchase_date')->take(20)->get();
+
+        return view('admin.families.show', compact('family', 'dateFilter', 'expenses', 'expenseTotal', 'expenseCount'));
     }
 }

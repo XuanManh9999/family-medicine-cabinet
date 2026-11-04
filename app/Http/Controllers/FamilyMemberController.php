@@ -175,6 +175,11 @@ class FamilyMemberController extends Controller
 
         $data = $this->validatedData($request, $member->id);
 
+        // Thành viên thường chỉ sửa thông tin sức khỏe của mình, không đổi liên kết tài khoản / quan hệ
+        if (!$request->user()->canManageMembers()) {
+            unset($data['user_id'], $data['relationship']);
+        }
+
         if ($request->hasFile('avatar_file')) {
             if ($member->avatar && Storage::disk('public')->exists($member->avatar)) {
                 Storage::disk('public')->delete($member->avatar);
@@ -213,6 +218,8 @@ class FamilyMemberController extends Controller
 
     private function validatedData(Request $request, ?int $memberId = null): array
     {
+        $familyId = $this->ensureFamily($request)->id;
+
         return $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'relationship' => ['required', 'string', 'in:ong_ba,bo_me,vo_chong,con_cai,ban_than,khac'],
@@ -221,12 +228,20 @@ class FamilyMemberController extends Controller
             'blood_type' => ['nullable', 'string', 'max:10'],
             'allergies' => ['nullable', 'string', 'max:3000'],
             'underlying_diseases' => ['nullable', 'string', 'max:3000'],
-            'user_id' => ['nullable', 'integer', 'exists:users,id'],
+            // Chỉ liên kết với tài khoản cùng gia đình và chưa gắn với hồ sơ nào khác
+            'user_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('users', 'id')->where('family_id', $familyId),
+                Rule::unique('family_members', 'user_id')->ignore($memberId),
+            ],
             'avatar_file' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:3072'],
         ], [
             'name.required' => 'Họ và tên thành viên là bắt buộc.',
             'relationship.required' => 'Vui lòng chọn mối quan hệ trong gia đình.',
             'dob.before_or_equal' => 'Ngày sinh không thể ở tương lai.',
+            'user_id.exists' => 'Tài khoản liên kết không thuộc hộ gia đình của bạn.',
+            'user_id.unique' => 'Tài khoản này đã được liên kết với một hồ sơ thành viên khác.',
             'avatar_file.image' => 'Ảnh đại diện phải là định dạng hình ảnh hợp lệ (JPG, PNG, WEBP).',
             'avatar_file.max' => 'Dung lượng ảnh đại diện không quá 3MB.',
         ]);

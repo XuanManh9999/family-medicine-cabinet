@@ -137,4 +137,52 @@ class FamilyMemberManagementTest extends TestCase
         // 5. Member CANNOT edit other member's profile
         $this->actingAs($member)->get(route('members.edit', $otherMember))->assertStatus(403);
     }
+
+    public function test_member_profile_cannot_be_linked_to_user_of_another_family(): void
+    {
+        $admin = User::where('email', 'an.nguyen@gmail.com')->first();
+        $otherFamily = Family::create(['name' => 'Gia đình khác', 'code' => 'FAM-OTHER1']);
+        $stranger = User::create([
+            'family_id' => $otherFamily->id,
+            'name' => 'Người lạ',
+            'email' => 'stranger@example.com',
+            'password' => bcrypt('password123'),
+            'role' => 'member',
+        ]);
+
+        $this->actingAs($admin)->post(route('members.store'), [
+            'name' => 'Hồ sơ thử liên kết',
+            'relationship' => 'khac',
+            'gender' => 'nam',
+            'user_id' => $stranger->id,
+        ])->assertSessionHasErrors('user_id');
+
+        $this->assertDatabaseMissing('family_members', ['user_id' => $stranger->id]);
+    }
+
+    public function test_plain_member_cannot_change_account_link_and_health_notes_are_escaped(): void
+    {
+        $member = User::where('email', 'hoa.tran@gmail.com')->first();
+        $profile = $member->familyMember;
+        $payload = '</textarea><script>alert(1)</script>';
+
+        $this->actingAs($member)->put(route('members.update', $profile), [
+            'name' => $profile->name,
+            'relationship' => 'khac',
+            'gender' => $profile->gender,
+            'allergies' => $payload,
+            'user_id' => '',
+        ])->assertRedirect(route('members.show', $profile));
+
+        $profile->refresh();
+        $this->assertSame($member->id, $profile->user_id);
+        $this->assertNotSame('khac', $profile->relationship);
+
+        // Chủ hộ mở form sửa: nội dung được escape, không thoát khỏi textarea
+        $admin = User::where('email', 'an.nguyen@gmail.com')->first();
+        $this->actingAs($admin)->get(route('members.edit', $profile))
+            ->assertOk()
+            ->assertDontSee($payload, false)
+            ->assertSee(e($payload), false);
+    }
 }

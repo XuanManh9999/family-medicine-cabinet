@@ -17,10 +17,12 @@
         <a href="{{ route('cabinet.index') }}" class="btn btn-sm btn-outline-secondary shadow-sm">
             <i class="bi bi-box-seam me-1"></i>Xem tủ thuốc gia đình
         </a>
-        <a href="{{ route('cabinet.items.create') }}" class="btn btn-erp-primary d-inline-flex align-items-center gap-1 shadow-sm">
-            <i class="bi bi-plus-circle"></i>
-            <span>Thêm thuốc mới vào tủ</span>
-        </a>
+        @if (auth()->user()->canManageCabinet())
+            <a href="{{ route('cabinet.items.create') }}" class="btn btn-erp-primary d-inline-flex align-items-center gap-1 shadow-sm">
+                <i class="bi bi-plus-circle"></i>
+                <span>Thêm thuốc mới vào tủ</span>
+            </a>
+        @endif
     </div>
 </div>
 
@@ -183,11 +185,18 @@
                                         title="Xem chi tiết dược thư">
                                     <i class="bi bi-eye"></i>
                                 </button>
-                                <button type="button" class="btn btn-erp-primary" 
-                                        onclick="openQuickAddToCabinetModal({{ json_encode($medicine) }})" 
-                                        title="Thêm nhanh vào tủ thuốc gia đình">
-                                    <i class="bi bi-plus-lg"></i> Thêm
-                                </button>
+                                @if (auth()->user()->canManageCabinet())
+                                    <button type="button" class="btn btn-erp-primary"
+                                            onclick="openQuickAddToCabinetModal({{ json_encode($medicine) }})"
+                                            title="Thêm nhanh vào tủ thuốc gia đình">
+                                        <i class="bi bi-plus-lg"></i> Thêm
+                                    </button>
+                                @elseif (auth()->user()->canRequestCabinetItems())
+                                    <a href="{{ route('cabinet.requests.create', ['medicine_id' => $medicine->id]) }}" class="btn btn-outline-primary"
+                                       title="Gia đình vừa mua thuốc này? Gửi đề nghị để Bác sĩ duyệt vào tủ">
+                                        <i class="bi bi-cart-plus"></i> Đề nghị
+                                    </a>
+                                @endif
                             </div>
                         </td>
                     </tr>
@@ -283,9 +292,11 @@
             </div>
             <div class="modal-footer bg-light py-2">
                 <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Đóng</button>
-                <button type="button" class="btn btn-sm btn-erp-primary" id="btnDetailAddCabinet">
-                    <i class="bi bi-plus-circle me-1"></i>Thêm vào tủ thuốc gia đình
-                </button>
+                @if (auth()->user()->canManageCabinet())
+                    <button type="button" class="btn btn-sm btn-erp-primary" id="btnDetailAddCabinet">
+                        <i class="bi bi-plus-circle me-1"></i>Thêm vào tủ thuốc gia đình
+                    </button>
+                @endif
             </div>
         </div>
     </div>
@@ -312,23 +323,23 @@
                     <div class="row g-2 mb-2">
                         <div class="col-7">
                             <label class="form-label small fw-semibold">Số lượng thực nhập <span class="text-danger">*</span></label>
-                            <input type="number" step="0.5" min="0.5" name="quantity" class="form-control form-control-sm" value="10" required>
+                            <input type="number" step="0.5" min="0.5" max="999999.99" name="quantity" class="form-control form-control-sm" value="10" required>
                         </div>
                         <div class="col-5">
                             <label class="form-label small fw-semibold">Đơn vị</label>
-                            <input type="text" name="unit" id="quickAddUnit" class="form-control form-control-sm" value="viên" required>
+                            <input type="text" name="unit" id="quickAddUnit" class="form-control form-control-sm" value="viên" maxlength="30">
                         </div>
                     </div>
 
                     <div class="row g-2 mb-2">
                         <div class="col-6">
                             <label class="form-label small fw-semibold">Hạn sử dụng (EXP) <span class="text-danger">*</span></label>
-                            <input type="date" name="expiry_date" class="form-control form-control-sm" 
+                            <input type="date" name="expiry_date" class="form-control form-control-sm" min="{{ today()->toDateString() }}"
                                    value="{{ \Carbon\Carbon::today()->addYears(2)->toDateString() }}" required>
                         </div>
                         <div class="col-6">
                             <label class="form-label small fw-semibold">Ngày sản xuất (NSX)</label>
-                            <input type="date" name="manufacture_date" class="form-control form-control-sm" 
+                            <input type="date" name="manufacture_date" class="form-control form-control-sm" max="{{ today()->toDateString() }}"
                                    value="{{ \Carbon\Carbon::today()->subMonths(3)->toDateString() }}">
                         </div>
                     </div>
@@ -346,7 +357,7 @@
 
                     <div class="mb-2">
                         <label class="form-label small fw-semibold">Đơn giá ước tính (VNĐ/đơn vị)</label>
-                        <input type="number" step="100" min="0" name="price_per_unit" class="form-control form-control-sm" placeholder="VD: 5000">
+                        <input type="number" step="any" min="0" max="999999999.99" name="price_per_unit" class="form-control form-control-sm" placeholder="VD: 5000">
                     </div>
                 </div>
                 <div class="modal-footer bg-light py-2">
@@ -378,11 +389,14 @@
         document.getElementById('detailMedSideEffects').innerText = med.side_effects || 'Hiếm gặp tác dụng phụ nghiêm trọng khi dùng đúng liều.';
         document.getElementById('detailMedContraindications').innerText = med.contraindications || 'Không có chống chỉ định đặc biệt ngoài mẫn cảm với thành phần.';
 
-        document.getElementById('btnDetailAddCabinet').onclick = function() {
-            const detailModal = bootstrap.Modal.getInstance(document.getElementById('medicineDetailModal'));
-            if (detailModal) detailModal.hide();
-            openQuickAddToCabinetModal(med);
-        };
+        const btnDetailAddCabinet = document.getElementById('btnDetailAddCabinet');
+        if (btnDetailAddCabinet) {
+            btnDetailAddCabinet.onclick = function() {
+                const detailModal = bootstrap.Modal.getInstance(document.getElementById('medicineDetailModal'));
+                if (detailModal) detailModal.hide();
+                openQuickAddToCabinetModal(med);
+            };
+        }
 
         const modal = new bootstrap.Modal(document.getElementById('medicineDetailModal'));
         modal.show();

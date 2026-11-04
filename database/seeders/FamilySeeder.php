@@ -29,7 +29,7 @@ class FamilySeeder extends Seeder
         User::updateOrCreate(
             ['email' => 'admin@medcabinet.vn'],
             [
-                'family_id' => $family->id,
+                'family_id' => null, // Quản trị viên trung tâm không thuộc hộ gia đình nào
                 'name' => 'Quản trị viên Trung tâm',
                 'phone' => '0901234567',
                 'role' => 'system_admin',
@@ -55,6 +55,18 @@ class FamilySeeder extends Seeder
                 'name' => 'Trần Thị Hoa',
                 'phone' => '0987654321',
                 'role' => 'member',
+                'password' => Hash::make('password'),
+            ]
+        );
+
+        // 2.2. Bác sĩ gia đình: quản lý tủ thuốc, kê đơn và lập lịch uống thuốc
+        User::updateOrCreate(
+            ['email' => 'bs.minh@medcabinet.vn'],
+            [
+                'family_id' => $family->id,
+                'name' => 'BS. Lê Văn Minh',
+                'phone' => '0934567890',
+                'role' => 'doctor_caregiver',
                 'password' => Hash::make('password'),
             ]
         );

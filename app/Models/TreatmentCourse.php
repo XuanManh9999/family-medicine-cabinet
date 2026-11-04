@@ -118,8 +118,30 @@ class TreatmentCourse extends Model
         return asset('storage/' . $this->prescription_image_path);
     }
 
+    /**
+     * Đơn thuốc đã được thẩm định an toàn hợp lệ hay chưa (thiếu has_conflict = chưa thẩm định / dữ liệu hỏng)
+     */
+    public function getIsSafetyEvaluatedAttribute(): bool
+    {
+        $data = $this->ai_analysis_data;
+        return is_array($data) && array_key_exists('has_conflict', $data);
+    }
+
+    /**
+     * Mức rủi ro: safe / warning / danger, hoặc 'unknown' khi chưa thẩm định
+     */
     public function getSafetyRiskLevelAttribute(): string
     {
-        return $this->ai_analysis_data['risk_level'] ?? ($this->ai_analysis_data['safety_status'] ?? 'safe');
+        if (!$this->is_safety_evaluated) {
+            return 'unknown';
+        }
+
+        $data = $this->ai_analysis_data;
+        $level = $data['risk_level'] ?? ($data['safety_status'] ?? null);
+        if (is_string($level) && in_array($level, ['safe', 'warning', 'danger'], true)) {
+            return $level;
+        }
+
+        return !empty($data['has_conflict']) ? 'warning' : 'safe';
     }
 }

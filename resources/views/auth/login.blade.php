@@ -65,7 +65,8 @@
         </a>
     </div>
 
-    <!-- DEMO ACCOUNTS QUICK FILL -->
+    <!-- DEMO ACCOUNTS QUICK FILL (chỉ hiển thị khi chạy local) -->
+    @if (app()->isLocal())
     <div class="mt-3 pt-3 border-top">
         <div class="small fw-bold text-muted mb-2 d-flex align-items-center gap-1">
             <i class="bi bi-lightning-charge-fill text-warning"></i>
@@ -79,6 +80,14 @@
                     <span class="text-muted" style="font-size: 11px;">an.nguyen@gmail.com</span>
                 </div>
                 <span class="badge bg-primary-subtle text-primary" style="font-size: 10px;">Chủ hộ</span>
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-success text-start d-flex justify-content-between align-items-center py-1.5 px-2"
+                    onclick="fillLogin('bs.minh@medcabinet.vn', 'password')">
+                <div>
+                    <strong class="d-block text-dark" style="font-size: 12px;">BS. Lê Văn Minh (Bác sĩ gia đình)</strong>
+                    <span class="text-muted" style="font-size: 11px;">bs.minh@medcabinet.vn</span>
+                </div>
+                <span class="badge bg-success-subtle text-success" style="font-size: 10px;">Bác sĩ</span>
             </button>
             <button type="button" class="btn btn-sm btn-outline-secondary text-start d-flex justify-content-between align-items-center py-1.5 px-2"
                     onclick="fillLogin('hoa.tran@gmail.com', 'password')">
@@ -98,6 +107,7 @@
             </button>
         </div>
     </div>
+    @endif
 </form>
 
 @push('scripts')

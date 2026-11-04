@@ -36,9 +36,22 @@ class CabinetItem extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        // Xóa lô thuốc => gỡ luôn các cảnh báo gắn với lô đó (tránh cảnh báo "mồ côi")
+        static::deleting(function (CabinetItem $item) {
+            SmartAlert::where('cabinet_item_id', $item->id)->delete();
+        });
+    }
+
     public function family()
     {
         return $this->belongsTo(Family::class);
+    }
+
+    public function smartAlerts()
+    {
+        return $this->hasMany(SmartAlert::class);
     }
 
     public function medicine()
@@ -134,5 +147,55 @@ class CabinetItem extends Model
     public function getTotalValueAttribute(): float
     {
         return (float) $this->quantity * (float) ($this->price_per_unit ?? 0);
+    }
+
+    /**
+     * Quy tắc trạng thái DUY NHẤT của lô thuốc (dùng chung cho form, nhập Excel, quét cảnh báo, trừ tồn kho):
+     * quá hạn > cận hạn 30 ngày > hết hàng > còn hạn
+     */
+    public static function computeStatus(string|Carbon|null $expiryDate, int|float|string|null $quantity): string
+    {
+        if ($expiryDate) {
+            $expiry = Carbon::parse($expiryDate)->startOfDay();
+            if ($expiry->lt(Carbon::today())) {
+                return 'qua_han';
+            }
+            if ($expiry->lte(Carbon::today()->addDays(30))) {
+                return 'sap_het_han';
+            }
+        }
+
+        return (float) $quantity <= 0 ? 'het_hang' : 'con_han';
+    }
+
+    /**
+     * Cập nhật lại cột status theo hạn dùng & tồn kho hiện tại (chỉ ghi khi thay đổi)
+     */
+    public function syncStatus(): void
+    {
+        $status = self::computeStatus($this->expiry_date, $this->quantity);
+        if ($this->status !== $status) {
+            $this->forceFill(['status' => $status])->save();
+        }
+    }
+
+    public function getStatusLabelAttribute(): string
+    {
+        return match (self::computeStatus($this->expiry_date, $this->quantity)) {
+            'qua_han' => 'Quá hạn',
+            'sap_het_han' => 'Cận hạn',
+            'het_hang' => 'Hết hàng',
+            default => $this->is_low_stock ? 'Sắp hết' : 'Còn hạn',
+        };
+    }
+
+    public function getStatusBadgeClassAttribute(): string
+    {
+        return match (self::computeStatus($this->expiry_date, $this->quantity)) {
+            'qua_han' => 'bg-danger text-white',
+            'sap_het_han' => 'bg-warning text-dark',
+            'het_hang' => 'bg-secondary text-white',
+            default => $this->is_low_stock ? 'bg-warning-subtle text-warning-emphasis border border-warning-subtle' : 'bg-success-subtle text-success border border-success-subtle',
+        };
     }
 }

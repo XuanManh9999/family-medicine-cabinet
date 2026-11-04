@@ -153,16 +153,18 @@
                         </div>
                     @elseif($user->isFamilyAdmin())
                         <ul class="list-unstyled mb-0 d-grid gap-1">
-                            <li><i class="bi bi-check-circle-fill text-success me-1"></i> Toàn quyền quản trị tủ thuốc (thêm/sửa/xóa thuốc, nhập Excel).</li>
                             <li><i class="bi bi-check-circle-fill text-success me-1"></i> Quản lý thành viên gia đình (thêm/sửa hồ sơ y tế/xóa).</li>
-                            <li><i class="bi bi-check-circle-fill text-success me-1"></i> Quản lý lịch uống thuốc, đơn điều trị và chi tiêu tủ thuốc.</li>
+                            <li><i class="bi bi-check-circle-fill text-success me-1"></i> Quản lý chi phí y tế và trung tâm cảnh báo của gia đình.</li>
                             <li><i class="bi bi-check-circle-fill text-success me-1"></i> Cung cấp mã gia đình để mời thành viên khác vào nhà.</li>
+                            <li><i class="bi bi-eye text-primary me-1"></i> Xem tủ thuốc, đơn điều trị, lịch uống thuốc và điểm danh uống thuốc.</li>
+                            <li><i class="bi bi-dash-circle text-muted me-1"></i> Thêm/sửa thuốc trong tủ, kê đơn và lập lịch uống do Bác sĩ phụ trách.</li>
                         </ul>
                     @elseif($user->isDoctorOrCaregiver())
                         <ul class="list-unstyled mb-0 d-grid gap-1">
+                            <li><i class="bi bi-check-circle-fill text-success me-1"></i> Quản lý tủ thuốc gia đình (thêm/sửa/xóa thuốc, nhập Excel, cập nhật tồn kho).</li>
                             <li><i class="bi bi-check-circle-fill text-success me-1"></i> Tạo và quản lý các phác đồ điều trị, đơn thuốc.</li>
                             <li><i class="bi bi-check-circle-fill text-success me-1"></i> Thiết lập và quản lý lịch nhắc uống thuốc cho bệnh nhân.</li>
-                            <li><i class="bi bi-dash-circle text-muted me-1"></i> Giới hạn: Không quản lý chi phí và không thay đổi thành viên gia đình.</li>
+                            <li><i class="bi bi-dash-circle text-muted me-1"></i> Giới hạn: Không thay đổi sổ thành viên gia đình.</li>
                         </ul>
                     @else
                         <ul class="list-unstyled mb-0 d-grid gap-1">
@@ -201,6 +203,13 @@
                                     <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 mt-1" style="font-size: 11.5px;" onclick="copyFamilyCode('{{ $user->family->code }}')">
                                         <i class="bi bi-copy me-1"></i> Sao chép mã
                                     </button>
+                                    <form method="POST" action="{{ route('family.regenerate-code') }}" class="d-inline"
+                                          onsubmit="return confirm('Tạo mã mời mới? Mã hiện tại sẽ không dùng được nữa.')">
+                                        @csrf
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary py-0 px-2 mt-1" style="font-size: 11.5px;" title="Dùng khi mã mời bị lộ">
+                                            <i class="bi bi-arrow-repeat me-1"></i> Tạo mã mới
+                                        </button>
+                                    </form>
                                 </div>
                             @else
                                 <div class="p-2 border rounded bg-light d-inline-block text-center w-100">
@@ -227,6 +236,9 @@
                                 <th>Email đăng nhập</th>
                                 <th>Vai trò</th>
                                 <th>Số điện thoại</th>
+                                @if ($user->isFamilyAdmin())
+                                    <th class="text-end">Quản lý</th>
+                                @endif
                             </tr>
                         </thead>
                         <tbody>
@@ -254,10 +266,45 @@
                                         </span>
                                     </td>
                                     <td>{{ $u->phone ?? '—' }}</td>
+                                    @if ($user->isFamilyAdmin())
+                                        <td class="text-end">
+                                            @if ($u->id !== $user->id && ($u->isMember() || $u->isDoctorOrCaregiver()))
+                                                <div class="d-inline-flex gap-1 align-items-center">
+                                                    <form method="POST" action="{{ route('family.users.role', $u) }}" class="d-inline-flex gap-1">
+                                                        @csrf @method('PATCH')
+                                                        <select name="role" class="form-select form-select-sm py-0" style="width: auto; font-size: 12px;" onchange="this.form.submit()" aria-label="Vai trò của {{ $u->name }}">
+                                                            <option value="member" @selected($u->isMember())>Thành viên</option>
+                                                            <option value="doctor_caregiver" @selected($u->isDoctorOrCaregiver())>Bác sĩ / Chăm sóc</option>
+                                                        </select>
+                                                    </form>
+                                                    <form method="POST" action="{{ route('family.users.remove', $u) }}" class="d-inline"
+                                                          onsubmit="return confirm('Gỡ tài khoản này khỏi gia đình? Hồ sơ sức khỏe vẫn được giữ lại.')">
+                                                        @csrf @method('DELETE')
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" title="Gỡ khỏi gia đình">
+                                                            <i class="bi bi-person-dash"></i>
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            @else
+                                                <span class="text-muted small">—</span>
+                                            @endif
+                                        </td>
+                                    @endif
                                 </tr>
                             @endforeach
                         </tbody>
                     </table>
+                </div>
+            </div>
+        @elseif (!$user->isSystemAdmin())
+            <!-- Tài khoản chưa thuộc hộ gia đình nào -->
+            <div class="content-card mb-3">
+                <div class="content-card-header bg-warning-subtle text-warning-emphasis">
+                    <span><i class="bi bi-house-exclamation me-1"></i>CHƯA THUỘC HỘ GIA ĐÌNH NÀO</span>
+                </div>
+                <div class="content-card-body text-center py-4">
+                    <i class="bi bi-house-add text-warning display-5 mb-2"></i>
+                    <p class="text-muted small mb-0">Tài khoản của bạn chưa được liên kết với hộ gia đình. Vui lòng liên hệ Quản trị viên hệ thống hoặc Chủ hộ để được thêm vào gia đình.</p>
                 </div>
             </div>
         @else

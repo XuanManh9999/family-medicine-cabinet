@@ -164,6 +164,7 @@
                     </div>
                 </div>
 
+                @if (app()->isLocal())
                 <div class="col-lg-5">
                     <div class="p-4 bg-white rounded-3 shadow text-dark border">
                         <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
@@ -181,7 +182,17 @@
                             </div>
                             <div class="d-flex justify-content-between align-items-center text-muted mt-1" style="font-size: 11px;">
                                 <span>Mật khẩu: <code>password</code></span>
-                                <span class="badge bg-primary">Full Quyền</span>
+                                <span class="badge bg-primary">Sổ hộ & Chi phí</span>
+                            </div>
+                        </div>
+                        <div class="p-2 border rounded bg-light mb-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <strong>Bác sĩ gia đình:</strong>
+                                <code>bs.minh@medcabinet.vn</code>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center text-muted mt-1" style="font-size: 11px;">
+                                <span>Mật khẩu: <code>password</code></span>
+                                <span class="badge bg-success">Tủ thuốc & Kê đơn</span>
                             </div>
                         </div>
                         <div class="p-2 border rounded bg-light mb-2">
@@ -209,6 +220,7 @@
                         </a>
                     </div>
                 </div>
+                @endif
             </div>
         </div>
     </section>

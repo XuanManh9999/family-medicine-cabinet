@@ -126,9 +126,31 @@ class MedicineMasterDataTest extends TestCase
         $response->assertSee('Tồn kho trong tủ gia đình');
     }
 
-    public function test_user_can_quick_add_medicine_to_cabinet(): void
+    public function test_family_admin_cannot_quick_add_medicine_to_cabinet(): void
     {
-        $response = $this->actingAs($this->user)->post(route('medicines.add-to-cabinet', $this->medicine), [
+        $this->actingAs($this->user)
+            ->get(route('medicines.index'))
+            ->assertDontSee('Thêm thuốc mới vào tủ');
+
+        $this->actingAs($this->user)->post(route('medicines.add-to-cabinet', $this->medicine), [
+            'quantity' => 20,
+            'expiry_date' => now()->addYear()->toDateString(),
+        ])->assertStatus(403);
+
+        $this->assertDatabaseMissing('cabinet_items', ['medicine_id' => $this->medicine->id]);
+    }
+
+    public function test_doctor_can_quick_add_medicine_to_cabinet(): void
+    {
+        $doctor = User::create([
+            'family_id' => $this->family->id,
+            'name' => 'BS. Gia Đình',
+            'email' => 'bacsi@example.com',
+            'password' => bcrypt('password123'),
+            'role' => 'doctor_caregiver',
+        ]);
+
+        $response = $this->actingAs($doctor)->post(route('medicines.add-to-cabinet', $this->medicine), [
             'quantity' => 20,
             'unit' => 'viên',
             'expiry_date' => now()->addYear()->toDateString(),
@@ -147,5 +169,50 @@ class MedicineMasterDataTest extends TestCase
             'storage_location' => 'Ngăn số 2',
             'batch_number' => 'LOT-TEST-99',
         ]);
+    }
+
+    private function makeDoctor(): User
+    {
+        return User::create([
+            'family_id' => $this->family->id,
+            'name' => 'BS. Kiểm Thử',
+            'email' => 'bacsi.kiemthu@example.com',
+            'password' => bcrypt('password123'),
+            'role' => 'doctor_caregiver',
+        ]);
+    }
+
+    public function test_quick_add_without_unit_uses_default_unit_and_null_price(): void
+    {
+        $doctor = $this->makeDoctor();
+
+        $response = $this->actingAs($doctor)->post(route('medicines.add-to-cabinet', $this->medicine), [
+            'quantity' => 5,
+            'expiry_date' => now()->addDays(10)->toDateString(),
+        ]);
+
+        $response->assertRedirect(route('cabinet.index'));
+        $item = \App\Models\CabinetItem::where('medicine_id', $this->medicine->id)->firstOrFail();
+        $this->assertSame('viên', $item->unit);
+        $this->assertNull($item->price_per_unit);
+        $this->assertSame('sap_het_han', $item->status);
+    }
+
+    public function test_quick_add_rejects_overflow_and_invalid_manufacturing_date(): void
+    {
+        $doctor = $this->makeDoctor();
+
+        $this->actingAs($doctor)
+            ->from(route('medicines.index'))
+            ->post(route('medicines.add-to-cabinet', $this->medicine), [
+                'quantity' => 100000000,
+                'price_per_unit' => 1e15,
+                'expiry_date' => now()->addYear()->toDateString(),
+                'manufacturing_date' => 'khong-phai-ngay',
+            ])
+            ->assertRedirect(route('medicines.index'))
+            ->assertSessionHasErrors(['quantity', 'price_per_unit', 'manufacture_date']);
+
+        $this->assertDatabaseMissing('cabinet_items', ['medicine_id' => $this->medicine->id]);
     }
 }

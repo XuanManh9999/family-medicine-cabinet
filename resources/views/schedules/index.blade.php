@@ -43,7 +43,7 @@
                     <span class="badge bg-success" style="font-size: 10px;">Hôm nay</span>
                 @endif
             </button>
-            <input type="date" id="datePickerInput" value="{{ $selectedDate }}" style="position: absolute; opacity: 0; pointer-events: none; width: 0;" onchange="window.location.href = '{{ route('schedules.index', request()->except('date')) }}' + (window.location.search.includes('?') ? '&' : '?') + 'date=' + this.value">
+            <input type="date" id="datePickerInput" value="{{ $selectedDate }}" style="position: absolute; opacity: 0; pointer-events: none; width: 0;" onchange="goToScheduleDate(this.value)">
             <a href="{{ route('schedules.index', array_merge(request()->query(), ['date' => $nextDate])) }}" class="btn btn-outline-secondary" title="Ngày kế tiếp">
                 <i class="bi bi-chevron-right"></i>
             </a>
@@ -101,13 +101,15 @@
             <div class="w-100">
                 <div class="d-flex justify-content-between align-items-center">
                     <div class="kpi-title text-info">Tỷ lệ tuân thủ</div>
-                    <div class="fw-bold fs-5 text-info">{{ $adherenceRate }}%</div>
+                    <div class="fw-bold fs-5 text-info" title="Số cữ đã uống / số cữ đã đến giờ">{{ $adherenceRate !== null ? $adherenceRate . '%' : '—' }}</div>
                 </div>
                 <div class="progress mt-1 mb-1" style="height: 6px;">
-                    <div class="progress-bar bg-info" role="progressbar" style="width: {{ $adherenceRate }}%;"></div>
+                    <div class="progress-bar bg-info" role="progressbar" style="width: {{ $adherenceRate ?? 0 }}%;"></div>
                 </div>
                 <div class="text-muted" style="font-size: 11px;">
-                    @if ($missedCount > 0)
+                    @if ($adherenceRate === null)
+                        <span><i class="bi bi-hourglass"></i> Chưa có cữ nào đến giờ uống</span>
+                    @elseif ($missedCount > 0)
                         <span class="text-danger"><i class="bi bi-exclamation-circle"></i> {{ $missedCount }} cữ quên/bỏ qua</span>
                     @else
                         <span class="text-success"><i class="bi bi-shield-check"></i> Uống thuốc rất đều đặn</span>
@@ -318,7 +320,7 @@
                                                                     <i class="bi bi-dash-circle-fill"></i>
                                                                     {{ $status === 'quen_uong' ? 'Quên uống' : 'Bỏ qua cữ' }}
                                                                 </span>
-                                                                <button type="button" class="btn btn-xs btn-link text-primary p-0 small text-decoration-none" onclick="quickTakeMed('{{ $item->id }}', '{{ $scheduledDateTimeStr }}')">
+                                                                <button type="button" class="btn btn-xs btn-link text-primary p-0 small text-decoration-none" onclick="quickTakeMed('{{ $item->id }}', '{{ $scheduledDateTimeStr }}', this)">
                                                                     Uống bù ngay
                                                                 </button>
                                                             </div>
@@ -327,10 +329,15 @@
                                                                     Lý do: {{ $log->note }}
                                                                 </div>
                                                             @endif
+                                                        @elseif ($carbonDate->gt(\Carbon\Carbon::today()))
+                                                            <!-- NGÀY TƯƠNG LAI: CHƯA THỂ ĐIỂM DANH -->
+                                                            <div class="small text-muted fst-italic text-center py-1">
+                                                                <i class="bi bi-hourglass me-1"></i>Chưa đến ngày uống
+                                                            </div>
                                                         @else
                                                             <!-- CHƯA UỐNG: NÚT THAO TÁC 1 CHẠM -->
                                                             <div class="d-flex gap-2">
-                                                                <button type="button" class="btn btn-sm btn-erp-success flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-1" onclick="quickTakeMed('{{ $item->id }}', '{{ $scheduledDateTimeStr }}')">
+                                                                <button type="button" class="btn btn-sm btn-erp-success flex-grow-1 d-flex align-items-center justify-content-center gap-1 py-1" onclick="quickTakeMed('{{ $item->id }}', '{{ $scheduledDateTimeStr }}', this)">
                                                                     <i class="bi bi-check-lg"></i>
                                                                     <span>Đã uống</span>
                                                                 </button>
@@ -463,7 +470,7 @@
                                         </ul>
                                     </div>
                                 @else
-                                    <span class="text-muted small" title="Chỉ Chủ hộ hoặc Bác sĩ mới có quyền chỉnh sửa">—</span>
+                                    <span class="text-muted small" title="Chỉ Bác sĩ hoặc Quản trị viên hệ thống mới có quyền chỉnh sửa">—</span>
                                 @endif
                             </td>
                         </tr>
@@ -689,6 +696,7 @@
                     </div>
 
                     <div class="form-check form-switch p-2 bg-light rounded border">
+                        <input type="hidden" name="deduct_cabinet" value="0">
                         <input class="form-check-input ms-0 me-2" type="checkbox" name="deduct_cabinet" id="deduct_cabinet" value="1" checked>
                         <label class="form-check-label small fw-semibold text-dark" for="deduct_cabinet">
                             <i class="bi bi-box-seam text-primary me-1"></i>Tự động trừ số lượng trong Tủ thuốc gia đình
@@ -755,8 +763,28 @@
 
 @push('scripts')
 <script>
+// Chuyển ngày xem trên dòng thời gian, giữ nguyên các bộ lọc khác
+function goToScheduleDate(dateValue) {
+    if (!dateValue) return;
+    const params = new URLSearchParams(window.location.search);
+    params.set('date', dateValue);
+    window.location.href = '{{ route('schedules.index') }}?' + params.toString();
+}
+
+// Chặn gửi lặp khi đang chờ máy chủ phản hồi (bấm đúp / bấm nhiều nút)
+let logRequestInFlight = false;
+
 // Thao tác nhanh 1 chạm: Đã uống (AJAX)
-function quickTakeMed(scheduleId, scheduledTimeStr) {
+function quickTakeMed(scheduleId, scheduledTimeStr, btn) {
+    if (logRequestInFlight) return;
+    logRequestInFlight = true;
+    if (btn) btn.disabled = true;
+
+    const release = () => {
+        logRequestInFlight = false;
+        if (btn) btn.disabled = false;
+    };
+
     const formData = new FormData();
     formData.append('_token', '{{ csrf_token() }}');
     formData.append('schedule_id', scheduleId);
@@ -772,18 +800,40 @@ function quickTakeMed(scheduleId, scheduledTimeStr) {
         },
         body: formData
     })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
+    .then(async res => ({ ok: res.ok, data: await res.json().catch(() => ({})) }))
+    .then(({ ok, data }) => {
+        if (ok && data.success) {
+            if (data.warning) {
+                alert('Đã ghi nhận đã uống. Lưu ý tủ thuốc: ' + data.warning);
+            }
             window.location.reload();
         } else {
             alert('Không thể ghi nhận: ' + (data.message || 'Lỗi hệ thống'));
+            release();
         }
     })
-    .catch(err => {
-        window.location.reload();
+    .catch(() => {
+        alert('Không thể kết nối máy chủ. Vui lòng kiểm tra mạng và thử lại.');
+        release();
     });
 }
+
+// Vô hiệu hóa nút gửi của các form điểm danh sau lần bấm đầu tiên
+document.addEventListener('DOMContentLoaded', function() {
+    ['takeMedForm', 'skipMedForm'].forEach(function(formId) {
+        const form = document.getElementById(formId);
+        if (!form) return;
+        form.addEventListener('submit', function(e) {
+            if (form.dataset.submitting === '1') {
+                e.preventDefault();
+                return;
+            }
+            form.dataset.submitting = '1';
+            const submitBtn = form.querySelector('[type="submit"]');
+            if (submitBtn) submitBtn.disabled = true;
+        });
+    });
+});
 
 function openTakeMedModal(scheduleId, medName, scheduledTimeStr, status, note) {
     document.getElementById('take_schedule_id').value = scheduleId;
@@ -877,15 +927,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 noteBox.classList.add('d-none');
             }
 
+            // Không cho điểm danh cữ trong tương lai; cữ đã uống thì không bấm "Đã uống" lại
+            const btnTaken = document.getElementById('btnCalMarkTaken');
+            const btnSkip = document.getElementById('btnCalMarkSkip');
+            btnTaken.disabled = !!props.is_future || props.status === 'da_uong';
+            btnSkip.disabled = !!props.is_future;
+
             // Bind Mark Taken Button
-            document.getElementById('btnCalMarkTaken').onclick = function() {
+            btnTaken.onclick = function() {
                 const calModal = bootstrap.Modal.getInstance(document.getElementById('calendarEventModal'));
                 if (calModal) calModal.hide();
-                quickTakeMed(props.schedule_id, props.scheduled_datetime);
+                quickTakeMed(props.schedule_id, props.scheduled_datetime, btnTaken);
             };
 
             // Bind Mark Skip Button
-            document.getElementById('btnCalMarkSkip').onclick = function() {
+            btnSkip.onclick = function() {
                 const calModal = bootstrap.Modal.getInstance(document.getElementById('calendarEventModal'));
                 if (calModal) calModal.hide();
                 openSkipMedModal(props.schedule_id, props.medicine_name, props.scheduled_datetime);

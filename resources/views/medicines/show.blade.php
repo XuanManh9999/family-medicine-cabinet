@@ -33,9 +33,15 @@
             <a href="{{ route('medicines.index') }}" class="btn btn-sm btn-outline-secondary shadow-sm">
                 <i class="bi bi-arrow-left me-1"></i>Quay lại danh mục
             </a>
-            <button type="button" class="btn btn-erp-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#quickAddCabinetModal">
-                <i class="bi bi-plus-circle me-1"></i>Thêm vào tủ thuốc gia đình
-            </button>
+            @if (auth()->user()->canManageCabinet())
+                <button type="button" class="btn btn-erp-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#quickAddCabinetModal">
+                    <i class="bi bi-plus-circle me-1"></i>Thêm vào tủ thuốc gia đình
+                </button>
+            @elseif (auth()->user()->canRequestCabinetItems())
+                <a href="{{ route('cabinet.requests.create', ['medicine_id' => $medicine->id]) }}" class="btn btn-erp-primary shadow-sm">
+                    <i class="bi bi-cart-plus me-1"></i>Đề nghị nhập vào tủ thuốc
+                </a>
+            @endif
         </div>
     </div>
 </div>
@@ -160,11 +166,13 @@
                                     <div><i class="bi bi-box me-1"></i>Số lượng tồn: <strong>{{ $item->quantity }} {{ $item->unit }}</strong></div>
                                     <div><i class="bi bi-geo-alt me-1"></i>Vị trí: {{ $item->storage_location ?: 'Ngăn chính' }}</div>
                                 </div>
-                                <div class="mt-2 text-end">
-                                    <a href="{{ route('cabinet.items.edit', $item) }}" class="btn btn-xs btn-outline-primary py-0 px-2" style="font-size: 11px;">
-                                        <i class="bi bi-pencil me-1"></i>Chỉnh sửa lô này
-                                    </a>
-                                </div>
+                                @if (auth()->user()->canManageCabinet())
+                                    <div class="mt-2 text-end">
+                                        <a href="{{ route('cabinet.items.edit', $item) }}" class="btn btn-xs btn-outline-primary py-0 px-2" style="font-size: 11px;">
+                                            <i class="bi bi-pencil me-1"></i>Chỉnh sửa lô này
+                                        </a>
+                                    </div>
+                                @endif
                             </div>
                         @endforeach
                     </div>
@@ -172,10 +180,19 @@
                     <div class="text-center py-4 text-muted">
                         <i class="bi bi-inbox fs-1 mb-2 opacity-50 d-block"></i>
                         <div class="fw-semibold">Tủ thuốc chưa có loại thuốc này.</div>
-                        <div class="small mt-1">Bạn có thể bấm nút bên dưới để bổ sung thuốc này vào tủ.</div>
-                        <button type="button" class="btn btn-erp-primary btn-sm mt-3" data-bs-toggle="modal" data-bs-target="#quickAddCabinetModal">
-                            <i class="bi bi-plus-circle me-1"></i>Thêm vào tủ thuốc ngay
-                        </button>
+                        @if (auth()->user()->canManageCabinet())
+                            <div class="small mt-1">Bạn có thể bấm nút bên dưới để bổ sung thuốc này vào tủ.</div>
+                            <button type="button" class="btn btn-erp-primary btn-sm mt-3" data-bs-toggle="modal" data-bs-target="#quickAddCabinetModal">
+                                <i class="bi bi-plus-circle me-1"></i>Thêm vào tủ thuốc ngay
+                            </button>
+                        @else
+                            <div class="small mt-1">Gia đình đã mua thuốc này? Gửi đề nghị để Bác sĩ phụ trách duyệt vào tủ.</div>
+                            @if (auth()->user()->canRequestCabinetItems())
+                                <a href="{{ route('cabinet.requests.create', ['medicine_id' => $medicine->id]) }}" class="btn btn-outline-primary btn-sm mt-3">
+                                    <i class="bi bi-cart-plus me-1"></i>Đề nghị nhập vào tủ
+                                </a>
+                            @endif
+                        @endif
                     </div>
                 @endif
             </div>
@@ -215,7 +232,7 @@
                     <div class="mb-3">
                         <label class="form-label small fw-bold text-dark">Số lượng nhập <span class="text-danger">*</span></label>
                         <div class="input-group input-group-sm">
-                            <input type="number" step="0.5" min="0.5" name="quantity" class="form-control" value="10" required>
+                            <input type="number" step="0.5" min="0.5" max="999999.99" name="quantity" class="form-control" value="10" required>
                             <input type="text" name="unit" class="form-control" value="{{ $medicine->default_unit ?: 'viên' }}" placeholder="Đơn vị tính">
                         </div>
                     </div>
@@ -223,11 +240,11 @@
                     <div class="row g-2 mb-3">
                         <div class="col-6">
                             <label class="form-label small fw-bold text-dark">Ngày sản xuất (NSX)</label>
-                            <input type="date" name="manufacture_date" class="form-control form-control-sm" max="{{ date('Y-m-d') }}">
+                            <input type="date" name="manufacture_date" class="form-control form-control-sm" max="{{ today()->toDateString() }}">
                         </div>
                         <div class="col-6">
                             <label class="form-label small fw-bold text-dark">Hạn sử dụng (HSD) <span class="text-danger">*</span></label>
-                            <input type="date" name="expiry_date" class="form-control form-control-sm" min="{{ date('Y-m-d') }}" required>
+                            <input type="date" name="expiry_date" class="form-control form-control-sm" min="{{ today()->toDateString() }}" required>
                         </div>
                     </div>
 
@@ -238,7 +255,7 @@
                         </div>
                         <div class="col-6">
                             <label class="form-label small fw-bold text-dark">Đơn giá (VNĐ)</label>
-                            <input type="number" step="500" min="0" name="price_per_unit" class="form-control form-control-sm" placeholder="VD: 5000">
+                            <input type="number" step="any" min="0" max="999999999.99" name="price_per_unit" class="form-control form-control-sm" placeholder="VD: 5000">
                         </div>
                     </div>
 

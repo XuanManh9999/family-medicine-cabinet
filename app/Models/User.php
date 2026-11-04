@@ -97,11 +97,21 @@ class User extends Authenticatable
     }
 
     /**
-     * Quyền quản lý Tủ thuốc (Thêm, sửa, xóa, nhập Excel)
+     * Quyền quản lý Tủ thuốc (Thêm, sửa, xóa, nhập Excel, cập nhật tồn kho)
+     * - Chỉ Bác sĩ/Người chăm sóc y tế hoặc Quản trị viên hệ thống
+     * - Chủ hộ và Thành viên chỉ xem, tra cứu và xuất Excel
      */
     public function canManageCabinet(): bool
     {
-        return $this->isFamilyAdmin() || $this->isSystemAdmin();
+        return $this->isDoctorOrCaregiver() || $this->isSystemAdmin();
+    }
+
+    /**
+     * Quyền gửi đề nghị nhập thuốc mua thêm vào tủ (Chủ hộ, Thành viên) để Bác sĩ duyệt
+     */
+    public function canRequestCabinetItems(): bool
+    {
+        return ($this->isFamilyAdmin() || $this->isMember()) && $this->family_id !== null;
     }
 
     /**
@@ -131,11 +141,11 @@ class User extends Authenticatable
     }
 
     /**
-     * Quyền kê đơn / lập phác đồ điều trị
+     * Quyền kê đơn / lập phác đồ điều trị (Bác sĩ hoặc Quản trị viên hệ thống)
      */
     public function canManageTreatments(): bool
     {
-        return $this->isFamilyAdmin() || $this->isDoctorOrCaregiver() || $this->isSystemAdmin();
+        return $this->isDoctorOrCaregiver() || $this->isSystemAdmin();
     }
 
     /**
@@ -143,15 +153,15 @@ class User extends Authenticatable
      */
     public function canDeleteTreatments(): bool
     {
-        return $this->isFamilyAdmin() || $this->isSystemAdmin();
+        return $this->isDoctorOrCaregiver() || $this->isSystemAdmin();
     }
 
     /**
-     * Quyền cấu hình và tạo lịch uống thuốc
+     * Quyền cấu hình và tạo lịch uống thuốc (Bác sĩ hoặc Quản trị viên hệ thống)
      */
     public function canManageSchedules(): bool
     {
-        return $this->isFamilyAdmin() || $this->isDoctorOrCaregiver() || $this->isSystemAdmin();
+        return $this->isDoctorOrCaregiver() || $this->isSystemAdmin();
     }
 
     /**

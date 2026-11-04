@@ -20,15 +20,16 @@
 <div class="admin-card mb-3">
     <div class="admin-card-body p-3">
         <form method="GET" action="{{ route('admin.families.index') }}" class="row g-2 align-items-center">
-            <div class="col-md-8">
+            <div class="col-md-5">
                 <div class="input-group input-group-sm">
                     <span class="input-group-text bg-light"><i class="bi bi-search text-muted"></i></span>
                     <input type="text" name="q" class="form-control" placeholder="Tìm theo tên hộ gia đình, mã mời (FAM-...), địa chỉ..." value="{{ $search }}">
                 </div>
             </div>
-            <div class="col-md-4 d-flex gap-1">
-                <button type="submit" class="btn btn-sm btn-primary flex-grow-1">Tìm kiếm</button>
-                @if ($search)
+            @include('admin.partials.date-filter', ['dateFilterLabel' => 'Ngày đăng ký'])
+            <div class="col-md-auto d-flex gap-1">
+                <button type="submit" class="btn btn-sm btn-primary flex-grow-1 px-3">Tìm kiếm</button>
+                @if ($search || $dateFilter->isActive())
                     <a href="{{ route('admin.families.index') }}" class="btn btn-sm btn-outline-secondary" title="Xóa tìm kiếm">
                         <i class="bi bi-arrow-counterclockwise"></i>
                     </a>

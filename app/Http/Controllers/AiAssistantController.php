@@ -62,20 +62,18 @@ class AiAssistantController extends Controller
             'prescription_image.max' => 'Dung lượng ảnh tối đa không quá 10MB.',
         ]);
 
+        // Ảnh đơn thuốc chỉ đọc trực tiếp từ file tạm upload, không lưu lại trên ổ public (dữ liệu y tế riêng tư)
         $file = $request->file('prescription_image');
-        $storedPath = $file->store('ai_prescriptions', 'public');
-        $fullPath = storage_path('app/public/' . $storedPath);
 
         // 1. Gọi Vision OCR bóc tách dữ liệu
-        $ocrResult = $this->geminiService->analyzePrescriptionImage($fullPath, $file->getMimeType());
+        $ocrResult = $this->geminiService->analyzePrescriptionImage($file->getRealPath(), $file->getMimeType());
 
-        // 2. Lấy hồ sơ thành viên nếu có chọn để kiểm tra tương tác thuốc
+        // 2. Lấy hồ sơ thành viên nếu có chọn để kiểm tra tương tác thuốc (không gửi họ tên lên AI)
         $patientProfile = [];
         if ($memberId = $request->input('family_member_id')) {
             $member = FamilyMember::where('family_id', $family->id)->find($memberId);
             if ($member) {
                 $patientProfile = [
-                    'name' => $member->name,
                     'age' => $member->age,
                     'allergies' => $member->allergies ?? '',
                     'underlying_diseases' => $member->underlying_diseases ?? '',
@@ -83,9 +81,9 @@ class AiAssistantController extends Controller
             }
         }
 
-        // 3. Kiểm tra an toàn tương tác thuốc nếu bóc tách được danh sách thuốc
+        // 3. Kiểm tra an toàn tương tác thuốc nếu bóc tách được danh sách thuốc THẬT (bỏ qua dữ liệu minh họa)
         $safetyReport = null;
-        if (!empty($ocrResult['medicines']) && is_array($ocrResult['medicines'])) {
+        if (empty($ocrResult['is_mock']) && !empty($ocrResult['medicines']) && is_array($ocrResult['medicines'])) {
             $medicinesList = array_map(function ($item) {
                 return [
                     'name' => $item['name'] ?? '',
@@ -100,7 +98,7 @@ class AiAssistantController extends Controller
 
         return response()->json([
             'success' => true,
-            'image_url' => asset('storage/' . $storedPath),
+            'is_mock' => !empty($ocrResult['is_mock']),
             'ocr_data' => $ocrResult,
             'safety_report' => $safetyReport,
             'patient_profile' => $patientProfile,
@@ -124,9 +122,8 @@ class AiAssistantController extends Controller
 
         $question = trim($request->input('question'));
 
-        // Xây dựng ngữ cảnh gia đình
+        // Xây dựng ngữ cảnh gia đình (không gửi tên hộ / họ tên thành viên lên AI)
         $familyContext = [
-            'family_name' => $family->name,
             'members_count' => $family->members()->count(),
             'cabinet_medicines' => $family->cabinetItems()->with('medicine')
                 ->where('quantity', '>', 0)
@@ -140,7 +137,6 @@ class AiAssistantController extends Controller
             $member = FamilyMember::where('family_id', $family->id)->find($memberId);
             if ($member) {
                 $familyContext['target_member'] = [
-                    'name' => $member->name,
                     'age' => $member->age,
                     'gender' => $member->gender_label,
                     'allergies' => $member->allergies,

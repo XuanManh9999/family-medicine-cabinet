@@ -30,6 +30,23 @@
     </div>
 </div>
 
+<!-- BỘ LỌC THỜI GIAN CHO ĐƠN ĐIỀU TRỊ & CHI PHÍ -->
+<div class="admin-card mb-3">
+    <div class="admin-card-body p-2 px-3">
+        <form method="GET" action="{{ route('admin.families.show', $family) }}" class="row g-2 align-items-center">
+            @include('admin.partials.date-filter', ['dateFilterLabel' => 'Đơn thuốc & chi phí'])
+            <div class="col-md-auto d-flex gap-1">
+                <button type="submit" class="btn btn-sm btn-primary px-3">Lọc</button>
+                @if ($dateFilter->isActive())
+                    <a href="{{ route('admin.families.show', $family) }}" class="btn btn-sm btn-outline-secondary" title="Xóa bộ lọc">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </a>
+                @endif
+            </div>
+        </form>
+    </div>
+</div>
+
 <div class="row g-3">
     <!-- CỘT TRÁI: THÀNH VIÊN & TÀI KHOẢN -->
     <div class="col-lg-6">
@@ -194,12 +211,55 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="4" class="text-center py-3 text-muted">Chưa có đợt điều trị nào.</td>
+                                <td colspan="4" class="text-center py-3 text-muted">
+                                    {{ $dateFilter->isActive() ? 'Không có đợt điều trị nào trong khoảng thời gian đã chọn.' : 'Chưa có đợt điều trị nào.' }}
+                                </td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
+        </div>
+
+        <!-- Chi phí y tế -->
+        <div class="admin-card mt-3">
+            <div class="admin-card-header bg-light d-flex justify-content-between align-items-center">
+                <span class="text-dark"><i class="bi bi-cash-coin text-success me-2"></i>Chi phí Y tế ({{ $expenseCount }})</span>
+                <span class="badge bg-success-subtle text-success border border-success-subtle">
+                    Tổng: {{ number_format($expenseTotal, 0, ',', '.') }} đ
+                </span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-admin mb-0">
+                    <thead>
+                        <tr>
+                            <th>Nội dung chi</th>
+                            <th>Người thụ hưởng</th>
+                            <th>Ngày mua</th>
+                            <th class="text-end">Số tiền</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($expenses as $expense)
+                            <tr>
+                                <td class="fw-semibold">{{ $expense->title }}</td>
+                                <td class="small text-muted">{{ $expense->familyMember?->name ?: 'Cả gia đình' }}</td>
+                                <td class="small text-muted">{{ $expense->purchase_date ? $expense->purchase_date->format('d/m/Y') : '—' }}</td>
+                                <td class="text-end fw-bold text-success">{{ number_format((float) $expense->amount, 0, ',', '.') }} đ</td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="4" class="text-center py-3 text-muted">
+                                    {{ $dateFilter->isActive() ? 'Không có khoản chi nào trong khoảng thời gian đã chọn.' : 'Chưa có khoản chi phí nào.' }}
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+            @if ($expenseCount > $expenses->count())
+                <div class="p-2 text-center text-muted small border-top">Hiển thị {{ $expenses->count() }} khoản gần nhất / {{ $expenseCount }} khoản</div>
+            @endif
         </div>
     </div>
 </div>

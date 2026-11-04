@@ -194,7 +194,7 @@ class AuthAndDashboardTest extends TestCase
 
     public function test_user_can_verify_valid_otp_and_reset_password(): void
     {
-        // 1. Gửi yêu cầu OTP
+        // 1. Gửi yêu cầu OTP (mã gốc không còn được lưu trong CSDL)
         $this->post('/forgot-password', [
             'email' => 'an.nguyen@gmail.com',
         ]);
@@ -203,21 +203,24 @@ class AuthAndDashboardTest extends TestCase
             ->where('email', 'an.nguyen@gmail.com')
             ->first();
         $this->assertNotNull($tokenRecord);
-        $otp = $tokenRecord->token;
+        $this->assertDoesNotMatchRegularExpression('/^\d{6}$/', $tokenRecord->token);
+
+        // Gán một mã OTP đã biết để kiểm thử luồng xác thực
+        $otp = '246810';
+        \Illuminate\Support\Facades\DB::table('password_reset_tokens')
+            ->where('email', 'an.nguyen@gmail.com')
+            ->update(['token' => \Illuminate\Support\Facades\Hash::make($otp)]);
 
         // 2. Xác thực OTP thành công
-        $verifyResponse = $this->withSession(['reset_email' => 'an.nguyen@gmail.com'])
-            ->post('/verify-otp', [
-                'otp' => $otp,
-            ]);
+        $verifyResponse = $this->post('/verify-otp', [
+            'otp' => $otp,
+        ]);
         $verifyResponse->assertRedirect('/reset-password');
         $verifyResponse->assertSessionHas('otp_verified', true);
+        $verifyResponse->assertSessionHas('otp_verified_email', 'an.nguyen@gmail.com');
 
         // 3. Đặt lại mật khẩu mới
-        $resetResponse = $this->withSession([
-            'reset_email' => 'an.nguyen@gmail.com',
-            'otp_verified' => true,
-        ])->post('/reset-password', [
+        $resetResponse = $this->post('/reset-password', [
             'password' => 'newpassword123',
             'password_confirmation' => 'newpassword123',
         ]);
@@ -253,8 +256,9 @@ class AuthAndDashboardTest extends TestCase
         Storage::disk('public')->assertExists($user->avatar);
     }
 
-    public function test_user_can_save_avatar_as_base64_string(): void
+    public function test_base64_avatar_is_decoded_and_stored_as_file(): void
     {
+        Storage::fake('public');
         $user = User::where('email', 'an.nguyen@gmail.com')->first();
         $base64String = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
@@ -265,7 +269,57 @@ class AuthAndDashboardTest extends TestCase
 
         $response->assertSessionHas('success');
         $user->refresh();
-        $this->assertEquals($base64String, $user->avatar);
-        $this->assertEquals($base64String, $user->avatar_url);
+        $this->assertStringStartsWith('avatars/', $user->avatar);
+        $this->assertStringEndsWith('.png', $user->avatar);
+        Storage::disk('public')->assertExists($user->avatar);
+
+        // Dữ liệu giả mạo định dạng ảnh bị từ chối
+        $this->actingAs($user)->post('/profile', [
+            'name' => 'Nguyễn Văn An',
+            'avatar_base64' => 'data:image/png;base64,' . base64_encode('<?php echo 1; ?>'),
+        ])->assertSessionHasErrors('avatar');
+    }
+
+    public function test_verified_otp_cannot_be_reused_to_reset_another_email(): void
+    {
+        $knownOtp = '135790';
+
+        // Kẻ tấn công xác thực OTP cho email của chính mình
+        $this->post('/forgot-password', ['email' => 'hoa.tran@gmail.com']);
+        \Illuminate\Support\Facades\DB::table('password_reset_tokens')
+            ->where('email', 'hoa.tran@gmail.com')
+            ->update(['token' => \Illuminate\Support\Facades\Hash::make($knownOtp)]);
+        $this->post('/verify-otp', ['otp' => $knownOtp])->assertRedirect('/reset-password');
+
+        // ...rồi đổi sang email nạn nhân: cờ xác thực cũ phải bị hủy
+        $this->post('/forgot-password', ['email' => 'an.nguyen@gmail.com']);
+        $this->post('/reset-password', [
+            'password' => 'hacked12345',
+            'password_confirmation' => 'hacked12345',
+        ])->assertRedirect(route('password.request'));
+
+        $victim = User::where('email', 'an.nguyen@gmail.com')->first();
+        $this->assertFalse(\Illuminate\Support\Facades\Hash::check('hacked12345', $victim->password));
+    }
+
+    public function test_otp_is_invalidated_after_too_many_wrong_attempts(): void
+    {
+        $this->post('/forgot-password', ['email' => 'an.nguyen@gmail.com']);
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->post('/verify-otp', ['otp' => '000000'])->assertSessionHasErrors('otp');
+        }
+        $this->post('/verify-otp', ['otp' => '000000'])->assertSessionHasErrors('otp');
+
+        $this->assertDatabaseMissing('password_reset_tokens', ['email' => 'an.nguyen@gmail.com']);
+    }
+
+    public function test_otp_and_demo_accounts_are_not_shown_outside_local(): void
+    {
+        // Môi trường kiểm thử (testing) không phải local: không lộ OTP và tài khoản demo
+        $this->post('/forgot-password', ['email' => 'an.nguyen@gmail.com'])
+            ->assertSessionMissing('demo_otp');
+        $this->get('/verify-otp')->assertOk()->assertDontSee('Điền nhanh');
+        $this->get('/login')->assertOk()->assertDontSee('admin@medcabinet.vn');
     }
 }

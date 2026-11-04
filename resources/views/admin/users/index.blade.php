@@ -20,13 +20,13 @@
 <div class="admin-card mb-3">
     <div class="admin-card-body p-3">
         <form method="GET" action="{{ route('admin.users.index') }}" class="row g-2 align-items-center">
-            <div class="col-md-7">
+            <div class="col-md-4">
                 <div class="input-group input-group-sm">
                     <span class="input-group-text bg-light"><i class="bi bi-search text-muted"></i></span>
                     <input type="text" name="q" class="form-control" placeholder="Tìm theo tên, email, số điện thoại..." value="{{ $search }}">
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <select name="role" class="form-select form-select-sm" onchange="this.form.submit()">
                     <option value="">-- Tất cả vai trò --</option>
                     <option value="system_admin" {{ $role === 'system_admin' ? 'selected' : '' }}>Quản trị viên Hệ thống (Super Admin)</option>
@@ -35,9 +35,10 @@
                     <option value="doctor_caregiver" {{ $role === 'doctor_caregiver' ? 'selected' : '' }}>Bác sĩ / Người chăm sóc</option>
                 </select>
             </div>
-            <div class="col-md-2 d-flex gap-1">
-                <button type="submit" class="btn btn-sm btn-primary flex-grow-1">Lọc</button>
-                @if ($search || $role)
+            @include('admin.partials.date-filter', ['dateFilterLabel' => 'Ngày đăng ký'])
+            <div class="col-md-auto d-flex gap-1">
+                <button type="submit" class="btn btn-sm btn-primary flex-grow-1 px-3">Lọc</button>
+                @if ($search || $role || $dateFilter->isActive())
                     <a href="{{ route('admin.users.index') }}" class="btn btn-sm btn-outline-secondary" title="Xóa bộ lọc">
                         <i class="bi bi-arrow-counterclockwise"></i>
                     </a>
@@ -112,13 +113,17 @@
                         </td>
                         <td class="text-end">
                             <div class="btn-group btn-group-sm">
-                                <button type="button" class="btn btn-outline-primary" 
-                                        onclick="openRoleModal({{ $u->id }}, '{{ addslashes($u->name) }}', '{{ $u->role }}')" 
+                                <button type="button" class="btn btn-outline-primary btn-open-role"
+                                        data-action="{{ route('admin.users.role', $u) }}"
+                                        data-name="{{ $u->name }}"
+                                        data-role="{{ $u->role }}"
                                         title="Đổi vai trò">
                                     <i class="bi bi-person-gear"></i> Vai trò
                                 </button>
-                                <button type="button" class="btn btn-outline-warning" 
-                                        onclick="openResetPasswordModal({{ $u->id }}, '{{ addslashes($u->name) }}', '{{ $u->email }}')" 
+                                <button type="button" class="btn btn-outline-warning btn-open-reset"
+                                        data-action="{{ route('admin.users.reset-password', $u) }}"
+                                        data-name="{{ $u->name }}"
+                                        data-email="{{ $u->email }}"
                                         title="Đặt lại mật khẩu">
                                     <i class="bi bi-key"></i>
                                 </button>
@@ -170,6 +175,10 @@
                             <option value="doctor_caregiver">Bác sĩ / Người chăm sóc (Doctor / Caregiver)</option>
                             <option value="system_admin">Quản trị viên Hệ thống (System Admin)</option>
                         </select>
+                        <div class="form-text small">
+                            Nâng lên Quản trị viên Hệ thống sẽ gỡ tài khoản khỏi hộ gia đình hiện tại (hồ sơ sức khỏe vẫn được giữ).
+                            Vai trò trong gia đình chỉ gán được cho tài khoản đang thuộc một hộ.
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer bg-light py-2">
@@ -218,19 +227,24 @@
 
 @push('scripts')
 <script>
-    function openRoleModal(userId, userName, currentRole) {
-        document.getElementById('roleForm').action = '/admin/users/' + userId + '/role';
-        document.getElementById('modalUserName').innerText = userName;
-        document.getElementById('modalUserRole').value = currentRole;
-        new bootstrap.Modal(document.getElementById('roleModal')).show();
-    }
+    // Dữ liệu người dùng đọc từ data-* (không nội suy vào JavaScript) và URL sinh bởi route() để chạy đúng cả khi đặt trong thư mục con
+    document.querySelectorAll('.btn-open-role').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.getElementById('roleForm').action = btn.dataset.action;
+            document.getElementById('modalUserName').textContent = btn.dataset.name;
+            document.getElementById('modalUserRole').value = btn.dataset.role;
+            new bootstrap.Modal(document.getElementById('roleModal')).show();
+        });
+    });
 
-    function openResetPasswordModal(userId, userName, userEmail) {
-        document.getElementById('resetPasswordForm').action = '/admin/users/' + userId + '/reset-password';
-        document.getElementById('resetUserName').innerText = userName;
-        document.getElementById('resetUserEmail').innerText = userEmail;
-        new bootstrap.Modal(document.getElementById('resetPasswordModal')).show();
-    }
+    document.querySelectorAll('.btn-open-reset').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.getElementById('resetPasswordForm').action = btn.dataset.action;
+            document.getElementById('resetUserName').textContent = btn.dataset.name;
+            document.getElementById('resetUserEmail').textContent = btn.dataset.email;
+            new bootstrap.Modal(document.getElementById('resetPasswordModal')).show();
+        });
+    });
 </script>
 @endpush
 @endsection

@@ -17,6 +17,8 @@ class MedicationLog extends Model
         'actual_taken_time',
         'status',
         'note',
+        'cabinet_item_id',
+        'deducted_quantity',
     ];
 
     protected function casts(): array
@@ -24,7 +26,16 @@ class MedicationLog extends Model
         return [
             'scheduled_time' => 'datetime',
             'actual_taken_time' => 'datetime',
+            'deducted_quantity' => 'decimal:2',
         ];
+    }
+
+    /**
+     * Lô thuốc trong tủ đã bị trừ khi ghi nhận "Đã uống" (để hoàn trả chính xác)
+     */
+    public function cabinetItem()
+    {
+        return $this->belongsTo(CabinetItem::class);
     }
 
     public function schedule()

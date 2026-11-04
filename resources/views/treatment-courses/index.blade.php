@@ -259,6 +259,10 @@
                                 <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1" title="Phát hiện nguy cơ tương tác thuốc hoặc dị ứng">
                                     <i class="bi bi-exclamation-octagon-fill me-1"></i>Nguy cơ cao
                                 </span>
+                            @elseif ($aiRisk === 'unknown')
+                                <span class="badge bg-secondary-subtle text-secondary border px-2 py-1" title="Đơn thuốc chưa có kết quả thẩm định tương tác thuốc hợp lệ">
+                                    <i class="bi bi-question-circle me-1"></i>Chưa thẩm định
+                                </span>
                             @elseif ($aiRisk === 'warning')
                                 <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1" title="Cần lưu ý liều dùng hoặc tác dụng phụ">
                                     <i class="bi bi-exclamation-triangle me-1"></i>Lưu ý

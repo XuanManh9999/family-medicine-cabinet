@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Medicine;
 use App\Models\MedicineCategory;
+use App\Support\DateRangeFilter;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -38,6 +39,9 @@ class AdminMedicineController extends Controller
             $query->where('dosage_form', $dosageForm);
         }
 
+        $dateFilter = DateRangeFilter::fromRequest($request);
+        $dateFilter->apply($query);
+
         $medicines = $query->orderBy('name')->paginate(15)->withQueryString();
         $categories = MedicineCategory::orderBy('name')->get();
         $dosageForms = Medicine::whereNotNull('dosage_form')
@@ -53,7 +57,8 @@ class AdminMedicineController extends Controller
             'dosageForms',
             'search',
             'categoryId',
-            'dosageForm'
+            'dosageForm',
+            'dateFilter'
         ));
     }
 

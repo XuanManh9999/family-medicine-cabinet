@@ -103,6 +103,8 @@ class SmartAlertController extends Controller
     public function scan(Request $request, AlertScannerService $scanner)
     {
         $family = $this->ensureFamily($request);
+        $user = $request->user();
+        abort_unless($user->canManageCabinet() || $user->isFamilyAdmin(), 403, 'Chỉ Chủ hộ, Bác sĩ/Người chăm sóc y tế hoặc Quản trị viên hệ thống mới có quyền quét cảnh báo tủ thuốc.');
 
         $results = $scanner->scanFamily($family);
 
@@ -115,6 +117,15 @@ class SmartAlertController extends Controller
         }
         if ($results['low_stock_count'] > 0) {
             $msg .= "Có {$results['low_stock_count']} thuốc/vật tư sắp hết. ";
+        }
+        if ($results['out_of_stock_count'] > 0) {
+            $msg .= "Có {$results['out_of_stock_count']} thuốc/vật tư đã hết hàng. ";
+        }
+        if ($results['new_alerts_created'] > 0) {
+            $msg .= "Tạo mới {$results['new_alerts_created']} cảnh báo. ";
+        }
+        if ($results['alerts_resolved'] > 0) {
+            $msg .= "Đã gỡ {$results['alerts_resolved']} cảnh báo không còn hiệu lực.";
         }
 
         return redirect()->route('alerts.index')->with('success', $msg);

@@ -25,13 +25,15 @@
     </div>
 
     <div class="d-flex align-items-center gap-2">
-        <a href="{{ route('expenses.export-csv') }}" class="btn btn-sm btn-outline-success shadow-sm">
+        <a href="{{ route('expenses.export-csv', request()->query()) }}" class="btn btn-sm btn-outline-success shadow-sm" title="Xuất theo bộ lọc hiện tại">
             <i class="bi bi-file-earmark-spreadsheet me-1"></i>Xuất Excel CSV
         </a>
-        <a href="{{ route('expenses.create') }}" class="btn btn-erp-primary d-inline-flex align-items-center gap-1 shadow-sm">
-            <i class="bi bi-plus-circle"></i>
-            <span>Thêm khoản chi mới</span>
-        </a>
+        @if ($canManageExpenses)
+            <a href="{{ route('expenses.create') }}" class="btn btn-erp-primary d-inline-flex align-items-center gap-1 shadow-sm">
+                <i class="bi bi-plus-circle"></i>
+                <span>Thêm khoản chi mới</span>
+            </a>
+        @endif
     </div>
 </div>
 
@@ -51,9 +53,9 @@
     <div class="col-6 col-md-3">
         <div class="kpi-box border-start border-4 border-primary">
             <div>
-                <div class="kpi-title text-primary">Chi tiêu tháng này</div>
+                <div class="kpi-title text-primary">{{ $monthKpiLabel }}</div>
                 <div class="kpi-number text-primary">{{ number_format($totalMonth, 0, ',', '.') }} <span class="fs-6 fw-normal">đ</span></div>
-                <div class="text-muted" style="font-size: 11px;">Hóa đơn tháng {{ \Carbon\Carbon::now()->format('m/Y') }}</div>
+                <div class="text-muted" style="font-size: 11px;">Hóa đơn tháng {{ $monthKpiPeriod }}</div>
             </div>
             <i class="bi bi-calendar2-month fs-2 text-primary opacity-75"></i>
         </div>
@@ -272,7 +274,8 @@
                         </td>
                         <td class="text-center">
                             @if ($exp->receipt_image_path)
-                                <button type="button" class="btn btn-sm btn-outline-info py-0 px-2" style="font-size: 11px;" onclick="viewReceiptImage('{{ $exp->receipt_image_url }}', '{{ addslashes($exp->title) }}')">
+                                <button type="button" class="btn btn-sm btn-outline-info py-0 px-2 btn-view-receipt" style="font-size: 11px;"
+                                        data-url="{{ $exp->receipt_image_url }}" data-title="{{ $exp->title }}">
                                     <i class="bi bi-image"></i> Xem
                                 </button>
                             @else
@@ -281,11 +284,16 @@
                         </td>
                         <td class="text-center">
                             <div class="d-flex align-items-center justify-content-center gap-1">
-                                <a href="{{ route('expenses.edit', $exp) }}" class="btn btn-sm btn-light border p-1" title="Chỉnh sửa">
-                                    <i class="bi bi-pencil text-warning"></i>
-                                </a>
+                                @if ($canManageExpenses)
+                                    <a href="{{ route('expenses.edit', $exp) }}" class="btn btn-sm btn-light border p-1" title="Chỉnh sửa">
+                                        <i class="bi bi-pencil text-warning"></i>
+                                    </a>
+                                @endif
                                 @if (auth()->user()->canDeleteExpenses())
-                                    <button type="button" class="btn btn-sm btn-light border p-1" title="Xóa" onclick="confirmDeleteExpense('{{ $exp->id }}', '{{ addslashes($exp->title) }}', '{{ number_format($exp->amount, 0, ',', '.') }}')">
+                                    <button type="button" class="btn btn-sm btn-light border p-1 btn-delete-expense" title="Xóa"
+                                            data-action="{{ route('expenses.destroy', $exp) }}"
+                                            data-title="{{ $exp->title }}"
+                                            data-amount="{{ number_format($exp->amount, 0, ',', '.') }}">
                                         <i class="bi bi-trash text-danger"></i>
                                     </button>
                                 @endif
@@ -298,9 +306,11 @@
                             <i class="bi bi-cash fs-1 text-secondary opacity-50 d-block mb-2"></i>
                             <div class="fw-semibold fs-6">Chưa có hóa đơn hoặc chi phí nào được ghi nhận</div>
                             <div class="small mb-3">Lưu trữ các hóa đơn tiền thuốc và viện phí giúp gia đình bạn quản lý chi tiêu y tế thông minh.</div>
-                            <a href="{{ route('expenses.create') }}" class="btn btn-sm btn-erp-primary">
-                                <i class="bi bi-plus-circle me-1"></i>Thêm khoản chi đầu tiên
-                            </a>
+                            @if ($canManageExpenses)
+                                <a href="{{ route('expenses.create') }}" class="btn btn-sm btn-erp-primary">
+                                    <i class="bi bi-plus-circle me-1"></i>Thêm khoản chi đầu tiên
+                                </a>
+                            @endif
                         </td>
                     </tr>
                 @endforelse
@@ -369,7 +379,7 @@
 </div>
 
 @push('scripts')
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script>
 // 1. Khởi tạo Biểu đồ 12 Tháng
 const monthlyData = @json(array_values($monthlyData));
@@ -459,19 +469,31 @@ if (memberData && memberData.length > 0) {
     });
 }
 
-function viewReceiptImage(url, title) {
-    document.getElementById('receiptModalImage').src = url;
-    document.getElementById('receiptModalTitle').innerHTML = '<i class="bi bi-receipt me-1"></i>' + title;
-    document.getElementById('receiptModalNewTab').href = url;
-    new bootstrap.Modal(document.getElementById('receiptModal')).show();
-}
+// Dữ liệu truyền qua data-* và gán bằng textContent (chống Stored XSS qua tiêu đề hóa đơn)
+document.querySelectorAll('.btn-view-receipt').forEach(btn => {
+    btn.addEventListener('click', function () {
+        const url = this.dataset.url || '';
+        const titleEl = document.getElementById('receiptModalTitle');
+        titleEl.textContent = '';
+        const icon = document.createElement('i');
+        icon.className = 'bi bi-receipt me-1';
+        titleEl.appendChild(icon);
+        titleEl.appendChild(document.createTextNode(this.dataset.title || 'Hóa đơn chứng từ'));
 
-function confirmDeleteExpense(id, title, amountFormatted) {
-    document.getElementById('deleteExpenseTitle').textContent = title;
-    document.getElementById('deleteExpenseAmount').textContent = amountFormatted + ' đ';
-    document.getElementById('deleteExpenseForm').action = `/expenses/${id}`;
-    new bootstrap.Modal(document.getElementById('deleteExpenseModal')).show();
-}
+        document.getElementById('receiptModalImage').src = url;
+        document.getElementById('receiptModalNewTab').href = url;
+        new bootstrap.Modal(document.getElementById('receiptModal')).show();
+    });
+});
+
+document.querySelectorAll('.btn-delete-expense').forEach(btn => {
+    btn.addEventListener('click', function () {
+        document.getElementById('deleteExpenseTitle').textContent = this.dataset.title || '';
+        document.getElementById('deleteExpenseAmount').textContent = (this.dataset.amount || '0') + ' đ';
+        document.getElementById('deleteExpenseForm').action = this.dataset.action;
+        new bootstrap.Modal(document.getElementById('deleteExpenseModal')).show();
+    });
+});
 </script>
 @endpush
 @endsection

@@ -2,7 +2,10 @@
 
 namespace App\Providers;
 
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -21,5 +24,17 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Paginator::useBootstrapFive();
+
+        // Giới hạn gọi Trợ lý AI (Gemini) để tránh cạn quota và treo tiến trình PHP
+        RateLimiter::for('ai', function (Request $request) {
+            return Limit::perMinute(15)
+                ->by($request->user()?->id ?: $request->ip())
+                ->response(function () {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Bạn đã gửi quá nhiều yêu cầu tới Trợ lý AI. Vui lòng thử lại sau ít phút.',
+                    ], 429);
+                });
+        });
     }
 }

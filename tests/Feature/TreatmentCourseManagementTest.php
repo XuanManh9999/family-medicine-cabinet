@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Family;
 use App\Models\FamilyMember;
+use App\Models\MedicationLog;
 use App\Models\MedicationSchedule;
 use App\Models\Medicine;
 use App\Models\MedicineCategory;
@@ -31,7 +32,7 @@ class TreatmentCourseManagementTest extends TestCase
         $this->seed();
 
         $this->family = Family::where('code', 'FAM-VN2026')->first();
-        $this->user = User::where('email', 'an.nguyen@gmail.com')->first();
+        $this->user = User::where('email', 'bs.minh@medcabinet.vn')->first();
         $this->grandpa = FamilyMember::where('family_id', $this->family->id)->where('name', 'Nguyễn Văn Thịnh')->first();
         if ($this->grandpa) {
             $this->grandpa->update(['allergies' => 'Aspirin, NSAID']);
@@ -275,6 +276,200 @@ class TreatmentCourseManagementTest extends TestCase
         $this->assertEquals('da_hoan_thanh', $course->status);
     }
 
+    /**
+     * Tạo đợt điều trị qua form (store) với 1 thuốc và các cữ uống cho trước
+     */
+    protected function storeCourse(array $times, array $overrides = [], array $itemOverrides = []): TreatmentCourse
+    {
+        $payload = array_merge([
+            'family_member_id' => $this->daughter->id,
+            'title' => 'Đợt điều trị thử đồng bộ lịch',
+            'start_date' => Carbon::today()->subDays(3)->toDateString(),
+            'end_date' => Carbon::today()->addDays(7)->toDateString(),
+            'status' => 'dang_dieu_tri',
+            'auto_generate_schedules' => '1',
+            'items' => [
+                array_merge([
+                    'medicine_name' => 'Thuốc thử đồng bộ',
+                    'dosage' => '1 viên',
+                    'frequency' => '2 lần/ngày',
+                    'unit' => 'viên',
+                    'meal_timing' => 'sau_an',
+                    'times' => $times,
+                ], $itemOverrides),
+            ],
+        ], $overrides);
+
+        $this->actingAs($this->user)->post(route('treatment-courses.store'), $payload)->assertRedirect();
+
+        return TreatmentCourse::where('family_id', $this->family->id)->latest('id')->firstOrFail();
+    }
+
+    public function test_editing_course_keeps_existing_logs_and_reconciles_time_slots(): void
+    {
+        $course = $this->storeCourse(['sang', 'toi', 'chieu']);
+        $pItem = $course->prescriptionItems()->sole();
+        $schedules = $pItem->schedules()->get()->keyBy('time_of_day');
+        $this->assertCount(3, $schedules);
+
+        // Cữ sáng & tối đã có nhật ký; cữ chiều chưa có
+        foreach (['sang', 'toi'] as $slot) {
+            MedicationLog::create([
+                'schedule_id' => $schedules[$slot]->id,
+                'family_member_id' => $this->daughter->id,
+                'scheduled_time' => Carbon::yesterday()->setTimeFromTimeString($schedules[$slot]->scheduled_time),
+                'status' => 'da_uong',
+            ]);
+        }
+
+        $response = $this->actingAs($this->user)->put(route('treatment-courses.update', $course), [
+            'family_member_id' => $this->daughter->id,
+            'title' => 'Đợt điều trị thử đồng bộ lịch (sửa)',
+            'start_date' => Carbon::today()->subDays(3)->toDateString(),
+            'end_date' => Carbon::today()->addDays(10)->toDateString(),
+            'status' => 'dang_dieu_tri',
+            'auto_generate_schedules' => '1',
+            'items' => [
+                [
+                    'id' => $pItem->id,
+                    'medicine_name' => 'Thuốc thử đồng bộ',
+                    'dosage' => '2 viên',
+                    'unit' => 'viên',
+                    'meal_timing' => 'truoc_an',
+                    'times' => ['sang', 'trua'],
+                ],
+            ],
+        ]);
+        $response->assertRedirect(route('treatment-courses.show', $course));
+
+        // Thuốc được cập nhật tại chỗ, không tạo lại
+        $this->assertSame([$pItem->id], $course->prescriptionItems()->pluck('id')->all());
+        $this->assertSame(2, MedicationLog::whereIn('schedule_id', $schedules->pluck('id'))->count());
+
+        // Cữ sáng giữ nguyên lịch (cùng id) và cập nhật liều / bữa ăn / ngày kết thúc
+        $morning = $schedules['sang']->fresh();
+        $this->assertSame($pItem->id, $morning->prescription_item_id);
+        $this->assertEquals('2 viên', $morning->dosage);
+        $this->assertEquals('truoc_an', $morning->meal_timing);
+        $this->assertTrue($morning->is_active);
+        $this->assertEquals(Carbon::today()->addDays(10)->toDateString(), $morning->end_date->toDateString());
+
+        // Cữ tối bị bỏ nhưng có nhật ký: ngừng lịch, giữ lịch sử
+        $evening = $schedules['toi']->fresh();
+        $this->assertNotNull($evening);
+        $this->assertFalse($evening->is_active);
+        $this->assertNull($evening->prescription_item_id);
+        $this->assertEquals(Carbon::yesterday()->toDateString(), $evening->end_date->toDateString());
+        $this->assertSame(1, $evening->logs()->count());
+
+        // Cữ chiều bị bỏ và chưa có nhật ký: xóa hẳn; cữ trưa mới được tạo
+        $this->assertNull($schedules['chieu']->fresh());
+        $this->assertEqualsCanonicalizing(['sang', 'trua'], $pItem->schedules()->pluck('time_of_day')->all());
+    }
+
+    public function test_removing_item_with_logs_keeps_adherence_history(): void
+    {
+        $course = $this->storeCourse(['sang']);
+        $oldItem = $course->prescriptionItems()->sole();
+        $oldSchedule = $oldItem->schedules()->sole();
+
+        MedicationLog::create([
+            'schedule_id' => $oldSchedule->id,
+            'family_member_id' => $this->daughter->id,
+            'scheduled_time' => Carbon::yesterday()->setTime(7, 30),
+            'status' => 'quen_uong',
+        ]);
+
+        $this->actingAs($this->user)->put(route('treatment-courses.update', $course), [
+            'family_member_id' => $this->daughter->id,
+            'title' => 'Đổi thuốc khác',
+            'start_date' => Carbon::today()->subDays(3)->toDateString(),
+            'status' => 'dang_dieu_tri',
+            'auto_generate_schedules' => '1',
+            'items' => [
+                ['medicine_name' => 'Thuốc thay thế', 'dosage' => '1 viên', 'times' => ['toi']],
+            ],
+        ])->assertRedirect();
+
+        $this->assertDatabaseMissing('prescription_items', ['id' => $oldItem->id]);
+        $oldSchedule->refresh();
+        $this->assertFalse($oldSchedule->is_active);
+        $this->assertSame(1, $oldSchedule->logs()->count());
+        $this->assertSame('Thuốc thay thế', $course->prescriptionItems()->sole()->medicine_name);
+    }
+
+    public function test_edit_form_preserves_item_id_times_and_meal_timing(): void
+    {
+        $course = $this->storeCourse(['trua', 'chieu'], [], ['meal_timing' => 'truoc_an']);
+        $pItem = $course->prescriptionItems()->sole();
+        $this->assertEquals('truoc_an', $pItem->meal_timing);
+
+        $html = $this->actingAs($this->user)->get(route('treatment-courses.edit', $course))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('name="items[0][id]" value="' . $pItem->id . '"', $html);
+        $this->assertMatchesRegularExpression('/id="time_trua_0"\s*checked/', $html);
+        $this->assertMatchesRegularExpression('/id="time_chieu_0"\s*checked/', $html);
+        $this->assertDoesNotMatchRegularExpression('/id="time_sang_0"\s*checked/', $html);
+        $this->assertDoesNotMatchRegularExpression('/id="time_toi_0"\s*checked/', $html);
+        $this->assertMatchesRegularExpression('/name="items\[0\]\[meal_timing\]".*?<option value="truoc_an" selected>/s', $html);
+    }
+
+    public function test_auto_generate_off_or_no_times_creates_no_schedules(): void
+    {
+        $course = $this->storeCourse(['sang', 'toi'], ['auto_generate_schedules' => '0']);
+        $this->assertSame(0, $course->schedules()->count());
+
+        // Thuốc dùng khi cần: không chọn cữ nào thì không lập lịch cố định
+        $prnCourse = $this->storeCourse([]);
+        $this->assertSame(1, $prnCourse->prescriptionItems()->count());
+        $this->assertSame(0, $prnCourse->schedules()->count());
+    }
+
+    public function test_unevaluated_course_shows_neutral_safety_state(): void
+    {
+        $course = TreatmentCourse::create([
+            'family_id' => $this->family->id,
+            'family_member_id' => $this->grandpa->id,
+            'title' => 'Đơn thuốc chưa thẩm định',
+            'start_date' => Carbon::today(),
+            'status' => 'dang_dieu_tri',
+        ]);
+
+        $this->assertSame('unknown', $course->safety_risk_level);
+
+        $this->actingAs($this->user)->get(route('treatment-courses.show', $course))
+            ->assertOk()
+            ->assertSee('Chưa thẩm định')
+            ->assertDontSee('Đã kiểm tra an toàn');
+
+        // Dữ liệu cũ lưu medicines_involved dạng chuỗi vẫn hiển thị được
+        $course->update(['ai_analysis_data' => [
+            'has_conflict' => true,
+            'risk_level' => 'danger',
+            'conflicts' => [['type' => 'allergy_conflict', 'severity' => 'danger', 'medicines_involved' => 'Aspirin 81mg']],
+        ]]);
+
+        $this->actingAs($this->user)->get(route('treatment-courses.show', $course))
+            ->assertOk()
+            ->assertSee('Chống chỉ định do dị ứng: Aspirin 81mg');
+    }
+
+    public function test_reactivating_course_only_reactivates_schedules_still_in_effect(): void
+    {
+        $course = $this->storeCourse(['sang', 'toi']);
+        $schedules = $course->schedules()->get()->keyBy('time_of_day');
+        $schedules['toi']->update(['end_date' => Carbon::yesterday()]);
+
+        $this->actingAs($this->user)->patch(route('treatment-courses.toggle-status', $course));
+        $this->assertSame(0, $course->schedules()->where('is_active', true)->count());
+
+        $this->actingAs($this->user)->patch(route('treatment-courses.toggle-status', $course));
+        $this->assertTrue($schedules['sang']->fresh()->is_active);
+        $this->assertFalse($schedules['toi']->fresh()->is_active);
+    }
+
     public function test_user_can_toggle_treatment_course_status(): void
     {
         $course = TreatmentCourse::create([
@@ -425,32 +620,49 @@ class TreatmentCourseManagementTest extends TestCase
             ->assertStatus(403);
     }
 
-    public function test_doctor_can_create_treatment_course_but_cannot_delete(): void
+    public function test_family_admin_can_view_but_cannot_prescribe_or_delete_treatment_courses(): void
     {
-        $doctor = User::create([
-            'family_id' => $this->family->id,
-            'name' => 'Bác sĩ Điều Trị',
-            'email' => 'doctor.dieutri@gmail.com',
-            'role' => 'doctor_caregiver',
-            'password' => bcrypt('password'),
-        ]);
+        $familyAdmin = User::where('email', 'an.nguyen@gmail.com')->first();
 
-        // 1. Doctor can access create form
-        $this->actingAs($doctor)
-            ->get(route('treatment-courses.create'))
-            ->assertStatus(200);
-
-        // 2. Doctor cannot delete treatment course (only family_admin or system_admin can delete)
         $course = TreatmentCourse::create([
             'family_id' => $this->family->id,
             'family_member_id' => $this->grandpa->id,
-            'title' => 'Đơn thuốc bác sĩ không thể xóa',
+            'title' => 'Đơn thuốc do bác sĩ kê',
             'start_date' => Carbon::today(),
             'status' => 'dang_dieu_tri',
         ]);
 
-        $this->actingAs($doctor)
+        // 1. Chủ hộ vẫn xem được danh sách và chi tiết đơn thuốc
+        $this->actingAs($familyAdmin)
+            ->get(route('treatment-courses.index'))
+            ->assertStatus(200)
+            ->assertDontSee(route('treatment-courses.create'));
+        $this->actingAs($familyAdmin)
+            ->get(route('treatment-courses.show', $course))
+            ->assertStatus(200);
+
+        // 2. Không được kê đơn, sửa, đổi trạng thái hay xóa
+        $this->actingAs($familyAdmin)
+            ->get(route('treatment-courses.create'))
+            ->assertStatus(403);
+        $this->actingAs($familyAdmin)
+            ->post(route('treatment-courses.store'), [
+                'family_member_id' => $this->grandpa->id,
+                'title' => 'Đơn thuốc chủ hộ tự kê',
+                'start_date' => Carbon::today()->toDateString(),
+                'status' => 'dang_dieu_tri',
+                'items' => [
+                    ['medicine_name' => 'Thuốc A', 'dosage' => '1 viên'],
+                ],
+            ])
+            ->assertStatus(403);
+        $this->actingAs($familyAdmin)
+            ->patch(route('treatment-courses.toggle-status', $course))
+            ->assertStatus(403);
+        $this->actingAs($familyAdmin)
             ->delete(route('treatment-courses.destroy', $course))
             ->assertStatus(403);
+
+        $this->assertDatabaseHas('treatment_courses', ['id' => $course->id]);
     }
 }

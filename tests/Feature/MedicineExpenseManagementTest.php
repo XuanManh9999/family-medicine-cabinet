@@ -281,6 +281,91 @@ class MedicineExpenseManagementTest extends TestCase
         $deleteResponse->assertStatus(403);
     }
 
+    public function test_member_can_view_but_not_create_or_edit_expenses(): void
+    {
+        $member = User::where('email', 'hoa.tran@gmail.com')->first();
+        $expense = MedicineExpense::create([
+            'family_id' => $this->family->id,
+            'title' => 'Hóa đơn chỉ được xem',
+            'amount' => 50000,
+            'purchase_date' => Carbon::today(),
+        ]);
+
+        $this->actingAs($member)->get(route('expenses.index'))
+            ->assertStatus(200)
+            ->assertSee('Hóa đơn chỉ được xem')
+            ->assertDontSee('Thêm khoản chi mới')
+            ->assertDontSee(route('expenses.edit', $expense));
+
+        $this->actingAs($member)->get(route('expenses.create'))->assertStatus(403);
+        $this->actingAs($member)->post(route('expenses.store'), [
+            'title' => 'Thành viên tự thêm',
+            'amount' => 1000,
+            'purchase_date' => Carbon::today()->toDateString(),
+        ])->assertStatus(403);
+        $this->actingAs($member)->get(route('expenses.edit', $expense))->assertStatus(403);
+        $this->actingAs($member)->put(route('expenses.update', $expense), [
+            'title' => 'Sửa trái phép',
+            'amount' => 1,
+            'purchase_date' => Carbon::today()->toDateString(),
+        ])->assertStatus(403);
+
+        $this->assertDatabaseMissing('medicine_expenses', ['title' => 'Thành viên tự thêm']);
+        $this->assertSame('Hóa đơn chỉ được xem', $expense->fresh()->title);
+    }
+
+    public function test_doctor_can_create_expense(): void
+    {
+        $doctor = User::where('email', 'bs.minh@medcabinet.vn')->first();
+
+        $this->actingAs($doctor)->post(route('expenses.store'), [
+            'title' => 'Bác sĩ ghi nhận tiền thuốc',
+            'amount' => 12500,
+            'purchase_date' => Carbon::today()->toDateString(),
+        ])->assertRedirect(route('expenses.index'));
+
+        $this->assertDatabaseHas('medicine_expenses', ['title' => 'Bác sĩ ghi nhận tiền thuốc', 'amount' => 12500]);
+    }
+
+    public function test_amount_overflow_and_future_purchase_date_are_rejected(): void
+    {
+        $this->actingAs($this->user)->post(route('expenses.store'), [
+            'title' => 'Số tiền quá lớn',
+            'amount' => 10000000000,
+            'purchase_date' => Carbon::tomorrow()->toDateString(),
+        ])->assertSessionHasErrors(['amount', 'purchase_date']);
+
+        $this->assertDatabaseMissing('medicine_expenses', ['title' => 'Số tiền quá lớn']);
+    }
+
+    public function test_export_csv_applies_index_filters_and_escapes_formulas(): void
+    {
+        MedicineExpense::create([
+            'family_id' => $this->family->id,
+            'family_member_id' => $this->grandpa->id,
+            'title' => '=HYPERLINK("http://evil.test","Bấm vào")',
+            'amount' => 70000,
+            'purchase_date' => Carbon::create(2025, 3, 10),
+        ]);
+        MedicineExpense::create([
+            'family_id' => $this->family->id,
+            'title' => 'Khoản chi năm khác',
+            'amount' => 80000,
+            'purchase_date' => Carbon::create(2024, 3, 10),
+        ]);
+
+        $query = ['year' => 2025, 'month' => 3, 'member_id' => $this->grandpa->id];
+
+        $this->actingAs($this->user)->get(route('expenses.index', $query))
+            ->assertSee(route('expenses.export-csv', $query))
+            ->assertSee('Chi tiêu tháng 03/2025');
+
+        $content = $this->actingAs($this->user)->get(route('expenses.export-csv', $query))->streamedContent();
+
+        $this->assertStringContainsString("'=HYPERLINK", $content);
+        $this->assertStringNotContainsString('Khoản chi năm khác', $content);
+    }
+
     public function test_validation_errors_when_required_fields_are_missing(): void
     {
         $response = $this->actingAs($this->user)->post(route('expenses.store'), [

@@ -146,7 +146,8 @@ class RefillRequestController extends Controller
                 }
                 // Kê tiếp: cộng thêm vào tổng số lượng kê của thuốc trong đơn → gia đình thấy ngay trong "Cần mua theo đơn"
                 $base = max((float) $item->total_prescribed_quantity, $item->purchased_quantity);
-                $item->update(['total_prescribed_quantity' => round($base + (float) $validated['approved_quantity'], 2)]);
+                // Cột decimal(8,2): không vượt giới hạn để tránh lỗi CSDL
+                $item->update(['total_prescribed_quantity' => min(999999.99, round($base + (float) $validated['approved_quantity'], 2))]);
 
                 if (!empty($validated['extended_until'])) {
                     $until = Carbon::parse($validated['extended_until']);
@@ -276,11 +277,20 @@ class RefillRequestController extends Controller
         abort_unless((int) $refillRequest->requested_by === (int) $request->user()->id || $request->user()->isFamilyAdmin(), 403,
             'Bạn chỉ có thể hủy yêu cầu do chính mình gửi.');
 
-        if (!$refillRequest->isCancellable()) {
+        // Khóa dòng & kiểm tra lại trạng thái: tránh hủy đè lên yêu cầu Bác sĩ vừa duyệt / gia đình vừa mua
+        $cancelled = DB::transaction(function () use ($refillRequest) {
+            $locked = RefillRequest::whereKey($refillRequest->id)->lockForUpdate()->first();
+            if (!$locked || !$locked->isCancellable()) {
+                return false;
+            }
+
+            return $locked->update(['status' => RefillRequest::STATUS_CANCELLED]);
+        });
+
+        if (!$cancelled) {
             return back()->with('warning', 'Chỉ hủy được yêu cầu đang chờ Bác sĩ, hoặc thuốc được đồng ý mua thêm mà chưa mua.');
         }
 
-        $refillRequest->update(['status' => RefillRequest::STATUS_CANCELLED]);
         SmartAlert::where('family_id', $family->id)->where('type', 'refill_request')
             ->where('action_url', $this->alertPath($refillRequest))->delete();
 

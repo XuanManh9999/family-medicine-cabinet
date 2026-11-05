@@ -104,6 +104,20 @@ class MedicationSchedule extends Model
         return $query->where('family_member_id', $memberId);
     }
 
+    /**
+     * Cữ thuốc này có thực sự "đến hạn" khi lịch đã tồn tại không?
+     * Cữ đã qua hơn 30 phút trước lúc tạo lịch (VD: 13h30 mới kê đơn bắt đầu hôm nay có cữ 7h30)
+     * thì không tính là cữ bị quên và không nhắc.
+     */
+    public function wasDueAfterCreation(Carbon $scheduledFor): bool
+    {
+        if (!$this->created_at) {
+            return true;
+        }
+
+        return $scheduledFor->gte($this->created_at->copy()->subMinutes(\App\Services\MedicationReminderService::DUE_WINDOW_MINUTES));
+    }
+
     public function getLogForDate(Carbon|string $date): ?MedicationLog
     {
         $targetDate = is_string($date) ? Carbon::parse($date)->toDateString() : $date->toDateString();

@@ -41,6 +41,10 @@ class MedicationReminderService
                 if ($scheduledFor->gt($now) || $schedule->getLogForDate($day)) {
                     continue;
                 }
+                // Cữ đã trôi qua từ trước khi lịch được tạo (VD: 13h30 mới kê đơn có cữ sáng) → không nhắc / không báo quên
+                if (!$schedule->wasDueAfterCreation($scheduledFor)) {
+                    continue;
+                }
 
                 $minutesLate = $scheduledFor->diffInMinutes($now);
 

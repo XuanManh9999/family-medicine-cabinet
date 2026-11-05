@@ -25,6 +25,14 @@ class AppServiceProvider extends ServiceProvider
     {
         Paginator::useBootstrapFive();
 
+        // Đọc tham số query dạng chuỗi an toàn: ?q[]=x (mảng) sẽ được coi là rỗng thay vì gây lỗi 500
+        Request::macro('textQuery', function (string $key): string {
+            /** @var Request $this */
+            $value = $this->query($key);
+
+            return is_string($value) ? trim($value) : '';
+        });
+
         // Giới hạn gọi Trợ lý AI (Gemini) để tránh cạn quota và treo tiến trình PHP
         RateLimiter::for('ai', function (Request $request) {
             return Limit::perMinute(15)

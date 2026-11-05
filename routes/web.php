@@ -56,6 +56,8 @@ Route::middleware('auth')->group(function () {
     Route::delete('/family/users/{user}', [\App\Http\Controllers\FamilyAccountController::class, 'remove'])->name('family.users.remove');
     Route::post('/family/users/{user}/doctor-request', [\App\Http\Controllers\FamilyAccountController::class, 'requestDoctor'])->name('family.users.doctor-request');
     Route::post('/family/doctor-requests/{doctorRoleRequest}/cancel', [\App\Http\Controllers\FamilyAccountController::class, 'cancelDoctorRequest'])->name('family.doctor-requests.cancel');
+    // Tài khoản chưa thuộc gia đình nào tham gia (lại) bằng mã mời
+    Route::post('/family/join', [\App\Http\Controllers\FamilyAccountController::class, 'join'])->middleware('throttle:10,1')->name('family.join');
     Route::post('/family/regenerate-code', [\App\Http\Controllers\FamilyAccountController::class, 'regenerateCode'])->name('family.regenerate-code');
 
     // Tủ thuốc gia đình

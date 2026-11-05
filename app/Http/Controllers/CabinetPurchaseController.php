@@ -23,6 +23,9 @@ class CabinetPurchaseController extends Controller
     public function createForPrescription(Request $request, PrescriptionItem $prescriptionItem)
     {
         $family = $this->authorizePrescriptionItem($request, $prescriptionItem);
+        if ($reason = $this->purchaseClosedReason($prescriptionItem)) {
+            return redirect()->route('cabinet.supply')->with('warning', $reason);
+        }
         $prescriptionItem->load(['treatmentCourse.familyMember', 'cabinetItems', 'medicine']);
 
         $existingStock = app(CabinetStockMatcher::class)
@@ -50,6 +53,12 @@ class CabinetPurchaseController extends Controller
         $course = $prescriptionItem->treatmentCourse;
 
         $item = DB::transaction(function () use ($request, $family, $prescriptionItem, $course, $data) {
+            // Khóa dòng thuốc trong đơn: bấm "Đã mua" 2 lần / 2 người cùng ghi nhận không tạo lô + chi phí trùng
+            $locked = PrescriptionItem::whereKey($prescriptionItem->id)->lockForUpdate()->first();
+            if (!$locked || $this->purchaseClosedReason($locked) !== null) {
+                return null;
+            }
+
             $item = $this->createLot($request, $family, $data, [
                 'refill_request_id' => RefillRequest::where('prescription_item_id', $prescriptionItem->id)
                     ->where('status', RefillRequest::STATUS_APPROVED)->latest('id')->value('id'),
@@ -65,6 +74,11 @@ class CabinetPurchaseController extends Controller
 
             return $item;
         });
+
+        if (!$item) {
+            return $this->redirectBack($request)->with('warning',
+                $this->purchaseClosedReason($prescriptionItem->fresh()) ?? 'Thuốc này đã được ghi nhận mua trước đó.');
+        }
 
         $this->refreshAlerts($family);
 
@@ -166,7 +180,13 @@ class CabinetPurchaseController extends Controller
             'expiry_date' => ['required', 'date', 'after_or_equal:today'],
             'batch_number' => ['nullable', 'string', 'max:255'],
             'storage_location' => ['nullable', 'string', 'max:255'],
-            'price_per_unit' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
+            'price_per_unit' => ['nullable', 'numeric', 'min:0', 'max:999999999.99', function ($attribute, $value, $fail) use ($request) {
+                // Thành tiền ghi vào sổ chi tiêu (decimal(12,2)) — gõ nhầm đơn giá quá lớn sẽ gây lỗi CSDL
+                if (is_numeric($value) && is_numeric($request->input('quantity'))
+                    && (float) $value * (float) $request->input('quantity') > 9999999999.99) {
+                    $fail('Thành tiền (số lượng × đơn giá) quá lớn, vui lòng kiểm tra lại đơn giá.');
+                }
+            }],
             'box_photos' => ['nullable', 'array', 'max:3'],
             'box_photos.*' => ['image', 'mimes:jpeg,jpg,png,webp', 'max:5120'],
         ], [
@@ -286,6 +306,25 @@ class CabinetPurchaseController extends Controller
         abort_unless((int) $prescriptionItem->treatmentCourse?->family_id === (int) $family->id, 404);
 
         return $family;
+    }
+
+    /**
+     * Lý do không cho ghi nhận mua theo đơn nữa (null = vẫn được mua):
+     * Bác sĩ đã cho ngưng thuốc, đợt điều trị không còn đang điều trị, hoặc đã mua đủ số lượng kê.
+     */
+    private function purchaseClosedReason(PrescriptionItem $prescriptionItem): ?string
+    {
+        if ($prescriptionItem->stopped_at !== null) {
+            return "Bác sĩ đã cho ngưng thuốc \"{$prescriptionItem->medicine_name}\" — không cần mua thêm.";
+        }
+        if ($prescriptionItem->treatmentCourse?->status !== 'dang_dieu_tri') {
+            return 'Đợt điều trị này không còn đang điều trị — không cần mua thêm thuốc theo đơn.';
+        }
+        if (!$prescriptionItem->needs_purchase) {
+            return "Thuốc \"{$prescriptionItem->medicine_name}\" đã được mua đủ theo đơn (kể cả lô đang chờ Bác sĩ xác nhận).";
+        }
+
+        return null;
     }
 
     private function authorizeRefill(Request $request, RefillRequest $refillRequest): Family

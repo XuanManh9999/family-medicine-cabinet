@@ -136,7 +136,9 @@ class DoctorLotApprovalTest extends TestCase
         $this->assertEquals(9, (float) $lot->fresh()->quantity);
 
         // Đã xử lý thì không xác nhận / trả lại lần nữa
-        $this->actingAs($this->doctor)->post(route('cabinet.lots.return', $lot->id), ['review_note' => 'x'])->assertStatus(409);
+        $this->actingAs($this->doctor)->post(route('cabinet.lots.return', $lot->id), ['review_note' => 'x'])
+            ->assertRedirect(route('cabinet.supply'))->assertSessionHas('warning');
+        $this->assertSame(CabinetItem::APPROVAL_APPROVED, $lot->fresh()->approval_status);
     }
 
     public function test_doctor_returns_wrong_lot_and_family_must_buy_again(): void

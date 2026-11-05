@@ -205,6 +205,7 @@
                         @forelse ($todaySchedules as $index => $sch)
                             @php
                                 $isTaken = $sch->logs->contains('status', 'da_uong');
+                                $todayLog = $sch->logs->first();
                             @endphp
                             <tr class="{{ $isTaken ? 'table-success bg-opacity-10' : '' }}">
                                 <td class="text-center text-muted">{{ $index + 1 }}</td>
@@ -232,6 +233,8 @@
                                 <td class="text-center">
                                     @if ($isTaken)
                                         <span class="badge bg-success"><i class="bi bi-check2 me-1"></i>Đã uống</span>
+                                    @elseif ($todayLog)
+                                        <span class="badge {{ $todayLog->status_badge_class }}">{{ $todayLog->status_label }}</span>
                                     @else
                                         <span class="badge bg-secondary">Chờ uống</span>
                                     @endif
@@ -239,6 +242,8 @@
                                 <td class="text-center">
                                     @if ($isTaken)
                                         <span class="text-success small fw-semibold">Hoàn thành</span>
+                                    @elseif ($todayLog)
+                                        <a href="{{ route('schedules.index') }}" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size: 12px;">Sửa</a>
                                     @else
                                         <a href="{{ route('schedules.index') }}" class="btn btn-sm btn-outline-primary py-0 px-2" style="font-size: 12px;">
                                             Điểm danh

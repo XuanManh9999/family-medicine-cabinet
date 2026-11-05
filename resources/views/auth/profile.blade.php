@@ -330,7 +330,20 @@
                 </div>
                 <div class="content-card-body text-center py-4">
                     <i class="bi bi-house-add text-warning display-5 mb-2"></i>
-                    <p class="text-muted small mb-0">Tài khoản của bạn chưa được liên kết với hộ gia đình. Vui lòng liên hệ Quản trị viên hệ thống hoặc Chủ hộ để được thêm vào gia đình.</p>
+                    <p class="text-muted small mb-3">Tài khoản của bạn chưa được liên kết với hộ gia đình. Hãy xin <strong>mã mời gia đình</strong> từ Chủ hộ (hiển thị trong trang Hồ sơ của Chủ hộ) rồi nhập vào ô dưới đây.</p>
+                    <form method="POST" action="{{ route('family.join') }}" class="d-flex flex-column flex-sm-row gap-2 justify-content-center mx-auto" style="max-width: 420px;">
+                        @csrf
+                        <div class="flex-grow-1 text-start">
+                            <input type="text" name="family_code" value="{{ old('family_code') }}" placeholder="VD: FAM-AB12CD" maxlength="50" required
+                                class="form-control @error('family_code') is-invalid @enderror" aria-label="Mã mời gia đình">
+                            @error('family_code')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <button type="submit" class="btn btn-warning fw-semibold text-nowrap align-self-start">
+                            <i class="bi bi-house-add me-1"></i>Tham gia gia đình
+                        </button>
+                    </form>
                 </div>
             </div>
         @else

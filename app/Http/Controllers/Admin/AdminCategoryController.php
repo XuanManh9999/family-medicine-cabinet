@@ -14,7 +14,7 @@ class AdminCategoryController extends Controller
      */
     public function index(Request $request)
     {
-        $search = trim((string) $request->query('q'));
+        $search = $request->textQuery('q');
         $type = $request->query('type'); // 'rx', 'otc'
 
         $query = MedicineCategory::withCount('medicines');

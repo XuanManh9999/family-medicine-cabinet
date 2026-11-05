@@ -69,6 +69,8 @@ class MedicationSupplyService
         $items = \App\Models\PrescriptionItem::whereHas('treatmentCourse', fn ($q) => $q
                 ->where('family_id', $family->id)
                 ->where('status', 'dang_dieu_tri'))
+            // Bác sĩ đã cho ngưng thuốc thì không nhắc gia đình mua nữa
+            ->whereNull('stopped_at')
             ->with(['treatmentCourse.familyMember', 'cabinetItems', 'schedules', 'medicine'])
             ->orderBy('treatment_course_id')
             ->get();

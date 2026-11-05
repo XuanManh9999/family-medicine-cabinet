@@ -222,6 +222,7 @@
                     <!-- Kích hoạt nhắc nhở -->
                     <div class="mb-4 p-3 bg-light rounded border">
                         <div class="form-check form-switch mb-0">
+                            <input type="hidden" name="is_active" value="0">
                             <input class="form-check-input" type="checkbox" name="is_active" id="is_active" value="1"
                                 {{ old('is_active', $schedule->is_active ?? true) ? 'checked' : '' }}>
                             <label class="form-check-label fw-semibold text-dark" for="is_active">

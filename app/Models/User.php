@@ -236,5 +236,21 @@ class User extends Authenticatable
 
         return asset('storage/' . $this->avatar);
     }
-}
 
+    /**
+     * Đăng xuất các phiên đăng nhập khác của tài khoản (sau khi đổi / đặt lại mật khẩu),
+     * để cookie phiên cũ bị lộ không còn dùng được. Chỉ áp dụng khi phiên lưu trong CSDL.
+     */
+    public function invalidateSessions(?string $exceptSessionId = null): void
+    {
+        if (config('session.driver') !== 'database') {
+            return;
+        }
+
+        \Illuminate\Support\Facades\DB::connection(config('session.connection'))
+            ->table(config('session.table', 'sessions'))
+            ->where('user_id', $this->getKey())
+            ->when($exceptSessionId, fn ($query) => $query->where('id', '!=', $exceptSessionId))
+            ->delete();
+    }
+}

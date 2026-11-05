@@ -289,16 +289,20 @@ class CabinetRequestController extends Controller
             'review_note.required' => 'Vui lòng ghi lý do từ chối để gia đình biết cần bổ sung gì.',
         ]);
 
-        if (!$cabinetRequest->isPending()) {
+        // Cập nhật có điều kiện: nếu đề nghị vừa được duyệt/hủy ở nơi khác thì không ghi đè trạng thái
+        $updated = CabinetRequest::whereKey($cabinetRequest->id)
+            ->where('status', CabinetRequest::STATUS_PENDING)
+            ->update([
+                'status' => CabinetRequest::STATUS_REJECTED,
+                'reviewed_by' => $request->user()->id,
+                'reviewed_at' => now(),
+                'review_note' => $validated['review_note'],
+            ]);
+
+        if (!$updated) {
             return $this->redirectAfterReview($request)->with('warning', 'Đề nghị này đã được xử lý trước đó.');
         }
-
-        $cabinetRequest->update([
-            'status' => CabinetRequest::STATUS_REJECTED,
-            'reviewed_by' => $request->user()->id,
-            'reviewed_at' => now(),
-            'review_note' => $validated['review_note'],
-        ]);
+        $cabinetRequest->refresh();
 
         $this->replaceRequestAlert($cabinetRequest, 'warning', "Từ chối đề nghị nhập thuốc: {$cabinetRequest->display_name}",
             "{$request->user()->name} đã từ chối đề nghị nhập \"{$cabinetRequest->display_name}\". Lý do: {$validated['review_note']}",
@@ -312,11 +316,13 @@ class CabinetRequestController extends Controller
         $this->ensureFamilyOwns($request, $cabinetRequest);
         abort_unless((int) $cabinetRequest->requested_by === (int) $request->user()->id, 403, 'Bạn chỉ có thể hủy đề nghị do chính mình gửi.');
 
-        if (!$cabinetRequest->isPending()) {
+        $updated = CabinetRequest::whereKey($cabinetRequest->id)
+            ->where('status', CabinetRequest::STATUS_PENDING)
+            ->update(['status' => CabinetRequest::STATUS_CANCELLED, 'updated_at' => now()]);
+
+        if (!$updated) {
             return back()->with('warning', 'Chỉ hủy được đề nghị đang chờ duyệt.');
         }
-
-        $cabinetRequest->update(['status' => CabinetRequest::STATUS_CANCELLED]);
         SmartAlert::where('family_id', $cabinetRequest->family_id)
             ->where('type', 'cabinet_request')
             ->where('action_url', $this->reviewPath($cabinetRequest))

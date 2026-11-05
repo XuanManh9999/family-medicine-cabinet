@@ -305,7 +305,7 @@
                                                                     <i class="bi bi-check-circle-fill"></i>
                                                                     Đã uống {{ $log->actual_taken_time ? '(' . $log->actual_taken_time->format('H:i') . ')' : '' }}
                                                                 </span>
-                                                                <button type="button" class="btn btn-xs btn-link text-muted p-0 small text-decoration-none" onclick="openTakeMedModal('{{ $item->id }}', '{{ addslashes($item->medicine_name) }}', '{{ $scheduledDateTimeStr }}', 'da_uong', '{{ addslashes($log->note ?? '') }}')">
+                                                                <button type="button" class="btn btn-xs btn-link text-muted p-0 small text-decoration-none" onclick="openTakeMedModal('{{ $item->id }}', '{{ addslashes($item->medicine_name) }}', '{{ $scheduledDateTimeStr }}', 'da_uong', '{{ addslashes($log->note ?? '') }}', '{{ $log->actual_taken_time?->format('Y-m-d\TH:i') }}')">
                                                                     <i class="bi bi-pencil"></i> Sửa
                                                                 </button>
                                                             </div>
@@ -835,7 +835,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-function openTakeMedModal(scheduleId, medName, scheduledTimeStr, status, note) {
+function openTakeMedModal(scheduleId, medName, scheduledTimeStr, status, note, actualTakenTime) {
+    // Sửa nhật ký đã uống: giữ nguyên giờ uống thực tế đã ghi, không ghi đè bằng giờ hiện tại
+    if (actualTakenTime) {
+        document.getElementById('actual_taken_time').value = actualTakenTime;
+    }
     document.getElementById('take_schedule_id').value = scheduleId;
     document.getElementById('take_scheduled_time').value = scheduledTimeStr;
     document.getElementById('take_med_name').textContent = medName;

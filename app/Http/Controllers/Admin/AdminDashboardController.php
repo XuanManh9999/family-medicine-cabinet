@@ -109,7 +109,7 @@ class AdminDashboardController extends Controller
             'db_driver' => config('database.default'),
             'storage_linked' => file_exists(public_path('storage')),
             'gemini_configured' => !empty(config('services.gemini.api_key')),
-            'gemini_model' => config('services.gemini.model', 'gemini-1.5-flash'),
+            'gemini_model' => config('services.gemini.model', 'gemini-flash-latest'),
             'scheduler_running' => $reminderLastRun && $reminderLastRun->gt(Carbon::now()->subMinutes(15)),
             'scheduler_last_run' => $reminderLastRun,
             'cabinet_scan_last_run' => $scanLastRun ? Carbon::parse($scanLastRun) : null,

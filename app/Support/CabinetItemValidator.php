@@ -46,6 +46,13 @@ class CabinetItemValidator
         ]);
 
         $validator->after(function ($validator) use ($input) {
+            // Thành tiền ghi vào sổ chi tiêu là decimal(12,2): chặn đơn giá gõ nhầm quá lớn gây lỗi CSDL
+            $quantity = $input['quantity'] ?? null;
+            $price = $input['price_per_unit'] ?? null;
+            if (is_numeric($quantity) && is_numeric($price) && (float) $quantity * (float) $price > 9999999999.99) {
+                $validator->errors()->add('price_per_unit', 'Thành tiền (số lượng × đơn giá) quá lớn, vui lòng kiểm tra lại đơn giá.');
+            }
+
             $manufactured = $input['manufacturing_date'] ?? null;
             $expires = $input['expiry_date'] ?? null;
             if (is_string($manufactured) && is_string($expires) && $manufactured !== '' && $expires !== ''

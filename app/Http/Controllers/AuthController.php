@@ -267,6 +267,11 @@ class AuthController extends Controller
 
         $user->save();
 
+        if (!empty($validated['new_password'])) {
+            // Đăng xuất mọi thiết bị khác, giữ lại phiên hiện tại
+            $user->invalidateSessions($request->session()->getId());
+        }
+
         // Cập nhật tên trong hồ sơ thành viên tương ứng nếu có
         if ($user->familyMember) {
             $user->familyMember->update(['name' => $user->name]);
@@ -316,7 +321,8 @@ class AuthController extends Controller
                 'created_at' => now(),
             ]
         );
-        RateLimiter::clear($this->otpAttemptKey($user->email));
+        // KHÔNG xóa bộ đếm nhập sai khi gửi mã mới: nếu không, kẻ tấn công có thể xin mã mới liên tục
+        // để đoán mãi không bị chặn. Bộ đếm tự hết hạn sau 15 phút kể từ lần nhập sai gần nhất.
 
         // Gửi email chứa mã OTP
         try {
@@ -383,7 +389,8 @@ class AuthController extends Controller
         $attemptKey = $this->otpAttemptKey($email);
         if (RateLimiter::tooManyAttempts($attemptKey, 5)) {
             DB::table('password_reset_tokens')->where('email', $email)->delete();
-            return back()->withErrors(['otp' => 'Bạn đã nhập sai quá nhiều lần. Mã OTP đã bị hủy, vui lòng yêu cầu mã mới.']);
+            $minutes = max(1, (int) ceil(RateLimiter::availableIn($attemptKey) / 60));
+            return back()->withErrors(['otp' => "Bạn đã nhập sai quá nhiều lần. Mã OTP đã bị hủy, vui lòng chờ khoảng {$minutes} phút rồi yêu cầu mã mới."]);
         }
 
         if (!Hash::check($request->otp, $record->token)) {
@@ -444,6 +451,7 @@ class AuthController extends Controller
         $user->password = Hash::make($request->password);
         $user->setRememberToken(Str::random(60));
         $user->save();
+        $user->invalidateSessions();
 
         // Xóa mã OTP đã sử dụng
         DB::table('password_reset_tokens')->where('email', $email)->delete();

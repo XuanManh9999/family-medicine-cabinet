@@ -42,7 +42,7 @@ class DateRangeFilter
 
     public static function fromRequest(Request $request): self
     {
-        $period = (string) $request->query('period', '');
+        $period = $request->textQuery('period');
         if (!array_key_exists($period, self::PERIODS)) {
             $period = '';
         }
@@ -64,7 +64,7 @@ class DateRangeFilter
             'this_quarter' => [$now->copy()->startOfQuarter(), $now->copy()->endOfQuarter()],
             'this_year' => [$now->copy()->startOfYear(), $now->copy()->endOfYear()],
             'day' => $date ? [Carbon::parse($date)->startOfDay(), Carbon::parse($date)->endOfDay()] : [null, null],
-            'month' => $month ? [Carbon::createFromFormat('Y-m', $month)->startOfMonth()->startOfDay(), Carbon::createFromFormat('Y-m', $month)->endOfMonth()->endOfDay()] : [null, null],
+            'month' => $month ? [Carbon::createFromFormat('!Y-m', $month)->startOfMonth(), Carbon::createFromFormat('!Y-m', $month)->endOfMonth()] : [null, null],
             'year' => $year ? [Carbon::create($year)->startOfYear(), Carbon::create($year)->endOfYear()] : [null, null],
             'range' => [$from ? Carbon::parse($from)->startOfDay() : null, $to ? Carbon::parse($to)->endOfDay() : null],
             default => [null, null],

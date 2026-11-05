@@ -313,7 +313,7 @@ class MedicineExpenseController extends Controller
             'month' => ($month >= 1 && $month <= 12) ? $month : null,
             'member_id' => $request->query('member_id'),
             'treatment_course_id' => $request->query('treatment_course_id'),
-            'q' => trim((string)$request->query('q')),
+            'q' => $request->textQuery('q'),
         ];
     }
 

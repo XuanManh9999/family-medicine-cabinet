@@ -18,6 +18,69 @@ use Illuminate\Validation\Rule;
 class FamilyAccountController extends Controller
 {
     /**
+     * Tài khoản chưa thuộc hộ gia đình nào (VD: bị Chủ hộ gỡ nhầm, hoặc chuyển sang gia đình khác)
+     * tự tham gia lại bằng mã mời — vào với vai trò Thành viên như khi đăng ký bằng mã mời.
+     */
+    public function join(Request $request)
+    {
+        $user = $request->user();
+        if ($user->isSystemAdmin()) {
+            return back()->with('warning', 'Tài khoản Quản trị viên hệ thống không tham gia hộ gia đình.');
+        }
+        if ($user->family_id) {
+            return back()->with('warning', 'Tài khoản của bạn đã thuộc một hộ gia đình.');
+        }
+
+        $validated = $request->validate([
+            'family_code' => ['required', 'string', 'max:50'],
+        ], [
+            'family_code.required' => 'Vui lòng nhập mã mời gia đình.',
+        ]);
+
+        $family = Family::where('code', strtoupper(trim($validated['family_code'])))->first();
+        if (!$family) {
+            return back()->withErrors(['family_code' => 'Mã mời gia đình không tồn tại. Vui lòng kiểm tra lại với Chủ hộ.'])->withInput();
+        }
+
+        DB::transaction(function () use ($user, $family) {
+            $user->forceFill(['family_id' => $family->id, 'role' => 'member'])->save();
+
+            // Quay lại gia đình cũ: liên kết lại hồ sơ sức khỏe cũ (cùng tên, chưa gắn tài khoản) thay vì tạo hồ sơ trùng
+            $profile = FamilyMember::where('family_id', $family->id)
+                ->whereNull('user_id')
+                ->whereRaw('LOWER(name) = ?', [mb_strtolower($user->name)])
+                ->orderBy('id')
+                ->first();
+
+            if ($profile) {
+                $profile->update(['user_id' => $user->id]);
+            } else {
+                FamilyMember::create([
+                    'family_id' => $family->id,
+                    'user_id' => $user->id,
+                    'name' => $user->name,
+                    'relationship' => 'ban_than',
+                    'gender' => 'nam',
+                ]);
+            }
+
+            \App\Models\SmartAlert::create([
+                'family_id' => $family->id,
+                'user_id' => $user->id,
+                'type' => 'family_join',
+                'level' => 'info',
+                'title' => "Tài khoản mới tham gia gia đình: {$user->name}",
+                'content' => "{$user->name} ({$user->email}) vừa tham gia hộ gia đình bằng mã mời với vai trò Thành viên."
+                    . ' Nếu không phải người nhà, Chủ hộ có thể gỡ tài khoản và tạo lại mã mời trong trang Hồ sơ.',
+                'is_read' => false,
+                'action_url' => route('profile', [], false),
+            ]);
+        });
+
+        return redirect()->route('dashboard')->with('success', "Bạn đã tham gia hộ gia đình \"{$family->name}\".");
+    }
+
+    /**
      * Chủ hộ chỉ được chuyển một tài khoản về Thành viên (thôi vai trò Bác sĩ).
      * Muốn có Bác sĩ phải gửi đề nghị để Quản trị viên hệ thống xác minh — chủ hộ không tự gán quyền chuyên môn.
      */

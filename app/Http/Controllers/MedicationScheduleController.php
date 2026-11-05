@@ -105,7 +105,7 @@ class MedicationScheduleController extends Controller
             }
 
             $dueAt = Carbon::parse($carbonDate->toDateString() . ' ' . $this->scheduleTimePart($sch));
-            if ($log || $dueAt->lte($now)) {
+            if ($log || ($dueAt->lte($now) && $sch->wasDueAfterCreation($dueAt))) {
                 $dueCount++;
             }
         }
@@ -614,7 +614,7 @@ class MedicationScheduleController extends Controller
             'meal_timing' => $validated['meal_timing'],
             'start_date' => $validated['start_date'],
             'end_date' => $validated['end_date'] ?? null,
-            'is_active' => $request->boolean('is_active', true),
+            'is_active' => $request->has('is_active') ? $request->boolean('is_active') : (bool) $schedule->is_active,
         ]);
 
         return redirect()->route('schedules.index')

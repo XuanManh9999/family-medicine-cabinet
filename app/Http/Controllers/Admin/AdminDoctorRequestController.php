@@ -89,16 +89,20 @@ class AdminDoctorRequestController extends Controller
             'review_note.required' => 'Vui lòng ghi lý do từ chối (VD: không xác minh được chứng chỉ hành nghề).',
         ]);
 
-        if (!$doctorRoleRequest->isPending()) {
+        // Cập nhật có điều kiện: không ghi đè khi Quản trị viên khác vừa duyệt cùng lúc
+        $updated = DoctorRoleRequest::whereKey($doctorRoleRequest->id)
+            ->where('status', DoctorRoleRequest::STATUS_PENDING)
+            ->update([
+                'status' => DoctorRoleRequest::STATUS_REJECTED,
+                'reviewed_by' => $request->user()->id,
+                'reviewed_at' => now(),
+                'review_note' => $validated['review_note'],
+                'updated_at' => now(),
+            ]);
+
+        if (!$updated) {
             return back()->with('warning', 'Đề nghị này đã được xử lý trước đó.');
         }
-
-        $doctorRoleRequest->update([
-            'status' => DoctorRoleRequest::STATUS_REJECTED,
-            'reviewed_by' => $request->user()->id,
-            'reviewed_at' => now(),
-            'review_note' => $validated['review_note'],
-        ]);
 
         SmartAlert::create([
             'family_id' => $doctorRoleRequest->family_id,

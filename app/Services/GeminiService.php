@@ -15,7 +15,7 @@ class GeminiService
     public function __construct()
     {
         $this->apiKey = config('services.gemini.api_key');
-        $this->model = config('services.gemini.model', 'gemini-1.5-flash');
+        $this->model = config('services.gemini.model', 'gemini-flash-latest');
         $this->baseUrl = config('services.gemini.base_url', 'https://generativelanguage.googleapis.com/v1beta');
     }
 
@@ -110,7 +110,7 @@ PROMPT;
         }
 
         if (is_array($result['medicines'] ?? null)) {
-            return $result;
+            return $this->normalizePrescriptionScan($result);
         }
 
         return $this->getMockPrescriptionAnalysis('Gemini AI không đọc được ảnh lúc này (lỗi kết nối hoặc phản hồi không hợp lệ).');
@@ -513,6 +513,10 @@ PROMPT;
         }
 
         if (is_array($result) && is_string($result['answer'] ?? null) && trim($result['answer']) !== '') {
+            $result['cabinet_match'] = $this->scalarText($result['cabinet_match'] ?? '');
+            $result['key_points'] = $this->stringList($result['key_points'] ?? []);
+            $result['suggested_actions'] = $this->stringList($result['suggested_actions'] ?? []);
+
             return $result;
         }
 
@@ -870,6 +874,61 @@ PROMPT;
                 ? 'Hãy tham khảo ý kiến bác sĩ hoặc dược sĩ trước khi cho người bệnh uống đồng thời các loại thuốc trên.'
                 : 'Uống thuốc đúng liều lượng và giờ giấc đã được chỉ định.',
         ];
+    }
+
+    /**
+     * Chuẩn hóa kết quả đọc đơn thuốc từ AI: mô hình đôi khi trả sai kiểu (mảng thay vì chuỗi,
+     * chuỗi thay vì danh sách, phần tử null) → ép về đúng kiểu để bộ luật an toàn và giao diện không bị lỗi
+     */
+    protected function normalizePrescriptionScan(array $result): array
+    {
+        $textFields = ['name', 'active_ingredient', 'concentration', 'dosage', 'frequency', 'instructions', 'unit', 'expiry_date'];
+
+        $result['medicines'] = array_values(array_filter(array_map(function ($medicine) use ($textFields) {
+            if (!is_array($medicine)) {
+                return null;
+            }
+            foreach ($textFields as $field) {
+                $medicine[$field] = $this->scalarText($medicine[$field] ?? '');
+            }
+            $quantity = $medicine['total_prescribed_quantity'] ?? null;
+            $medicine['total_prescribed_quantity'] = is_numeric($quantity) ? (float) $quantity : null;
+
+            return $medicine['name'] !== '' || $medicine['active_ingredient'] !== '' ? $medicine : null;
+        }, $result['medicines'])));
+
+        foreach (['hospital_doctor', 'diagnosis', 'date_prescribed', 'plain_language_summary'] as $field) {
+            $result[$field] = $this->scalarText($result[$field] ?? '');
+        }
+        $result['precautions'] = $this->stringList($result['precautions'] ?? []);
+
+        return $result;
+    }
+
+    /** Giá trị chữ an toàn: chuỗi/số giữ nguyên, mảng ghép bằng dấu phẩy, kiểu khác → rỗng */
+    protected function scalarText(mixed $value): string
+    {
+        if (is_string($value) || is_int($value) || is_float($value)) {
+            return trim((string) $value);
+        }
+        if (is_array($value)) {
+            return implode(', ', array_filter(array_map(fn ($v) => is_scalar($v) ? trim((string) $v) : '', $value), fn ($v) => $v !== ''));
+        }
+
+        return '';
+    }
+
+    /** Danh sách chuỗi an toàn: chuỗi đơn → [chuỗi], phần tử không phải chữ bị bỏ */
+    protected function stringList(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = trim($value) === '' ? [] : [$value];
+        }
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(fn ($v) => is_scalar($v) ? trim((string) $v) : '', $value), fn ($v) => $v !== ''));
     }
 
     /**

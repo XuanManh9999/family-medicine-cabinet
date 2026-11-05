@@ -60,7 +60,7 @@ class TreatmentCourseController extends Controller
         }
 
         // Tìm kiếm theo tên đợt / chẩn đoán / bệnh viện bác sĩ
-        if ($search = trim((string) $request->query('q'))) {
+        if ($search = $request->textQuery('q')) {
             $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', "%{$search}%")
                   ->orWhere('diagnosis', 'like', "%{$search}%")
@@ -593,6 +593,12 @@ class TreatmentCourseController extends Controller
             $endDate = $pItem->stopped_at;
         }
 
+        // Cữ cần tạo lịch mới: time_of_day => [giờ uống, ngày bắt đầu]
+        $toCreate = [];
+        foreach (array_keys($remaining ?? []) as $timeKey) {
+            $toCreate[$timeKey] = [self::TIME_SLOT_MAP[$timeKey], $course->start_date];
+        }
+
         foreach ($pItem->schedules()->orderBy('id')->get() as $schedule) {
             $keep = $remaining === null || isset($remaining[$schedule->time_of_day]);
 
@@ -601,8 +607,29 @@ class TreatmentCourseController extends Controller
                 continue;
             }
 
-            if ($remaining !== null) {
-                unset($remaining[$schedule->time_of_day]);
+            unset($toCreate[$schedule->time_of_day]);
+
+            $logRange = $schedule->logs()
+                ->selectRaw('MIN(scheduled_time) as first_log, MAX(scheduled_time) as last_log')
+                ->first();
+
+            // Đổi người bệnh của đơn: lịch đã có nhật ký thuộc về người cũ → ngừng & giữ lịch sử,
+            // tạo lịch mới cho người bệnh mới từ hôm nay (không gán nhật ký cũ sang người khác)
+            if ((int) $schedule->family_member_id !== $memberId && $logRange?->last_log) {
+                $this->retireSchedule($schedule);
+                $start = Carbon::today()->max($course->start_date ?? Carbon::today());
+                $toCreate[$schedule->time_of_day] = [$schedule->scheduled_time, $start];
+                continue;
+            }
+
+            // Sửa ngày của đơn không được làm "mất" các ngày đã điểm danh khỏi dòng thời gian / lịch biểu
+            $startDate = $course->start_date;
+            if ($logRange?->first_log && $startDate && Carbon::parse($logRange->first_log)->startOfDay()->lt($startDate)) {
+                $startDate = Carbon::parse($logRange->first_log)->startOfDay();
+            }
+            $scheduleEnd = $endDate;
+            if ($logRange?->last_log && $scheduleEnd && Carbon::parse($logRange->last_log)->startOfDay()->gt($scheduleEnd)) {
+                $scheduleEnd = Carbon::parse($logRange->last_log)->startOfDay();
             }
 
             $schedule->update([
@@ -612,13 +639,16 @@ class TreatmentCourseController extends Controller
                 'dosage' => $pItem->dosage,
                 'unit' => $pItem->unit,
                 'meal_timing' => $pItem->meal_timing ?? 'sau_an',
-                'start_date' => $course->start_date,
-                'end_date' => $endDate,
+                'start_date' => $startDate,
+                'end_date' => $scheduleEnd,
                 'is_active' => $isActive,
             ]);
         }
 
-        foreach (array_keys($remaining ?? []) as $timeKey) {
+        foreach ($toCreate as $timeKey => [$scheduledTime, $startDate]) {
+            if ($endDate && $startDate && Carbon::parse($startDate)->gt($endDate)) {
+                continue;
+            }
             MedicationSchedule::create([
                 'family_id' => $familyId,
                 'family_member_id' => $memberId,
@@ -627,9 +657,9 @@ class TreatmentCourseController extends Controller
                 'dosage' => $pItem->dosage,
                 'unit' => $pItem->unit,
                 'time_of_day' => $timeKey,
-                'scheduled_time' => self::TIME_SLOT_MAP[$timeKey],
+                'scheduled_time' => $scheduledTime,
                 'meal_timing' => $pItem->meal_timing ?? 'sau_an',
-                'start_date' => $course->start_date,
+                'start_date' => $startDate,
                 'end_date' => $endDate,
                 'is_active' => $isActive,
             ]);

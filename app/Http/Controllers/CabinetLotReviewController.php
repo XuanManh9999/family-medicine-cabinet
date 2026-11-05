@@ -19,8 +19,11 @@ class CabinetLotReviewController extends Controller
 {
     public function confirm(Request $request, int $lot)
     {
-        $item = $this->findPendingLot($lot);
+        $item = CabinetItem::withAnyApproval()->findOrFail($lot);
         $family = $this->ensureReviewer($request, $item);
+        if (!$item->isPendingReview()) {
+            return $this->redirectAfterReview($request)->with('warning', 'Lô thuốc này đã được xử lý trước đó.');
+        }
         // Kiểm tra chéo: người mua không tự xác nhận thuốc mình mua
         abort_if((int) $item->purchased_by === (int) $request->user()->id, 403,
             'Bạn là người mua lô thuốc này nên không tự xác nhận được. Cần Bác sĩ khác hoặc Quản trị viên hệ thống xác nhận.');
@@ -62,8 +65,11 @@ class CabinetLotReviewController extends Controller
 
     public function returnLot(Request $request, int $lot)
     {
-        $item = $this->findPendingLot($lot);
+        $item = CabinetItem::withAnyApproval()->findOrFail($lot);
         $family = $this->ensureReviewer($request, $item);
+        if (!$item->isPendingReview()) {
+            return $this->redirectAfterReview($request)->with('warning', 'Lô thuốc này đã được xử lý trước đó.');
+        }
         $validated = $request->validate([
             'review_note' => ['required', 'string', 'max:1000'],
         ], [
@@ -122,14 +128,6 @@ class CabinetLotReviewController extends Controller
         abort_unless($path && Storage::disk('local')->exists($path), 404);
 
         return Storage::disk('local')->response($path, null, ['Cache-Control' => 'private, max-age=3600']);
-    }
-
-    private function findPendingLot(int $lot): CabinetItem
-    {
-        $item = CabinetItem::withAnyApproval()->findOrFail($lot);
-        abort_unless($item->isPendingReview(), 409, 'Lô thuốc này đã được xử lý trước đó.');
-
-        return $item;
     }
 
     /**

@@ -16,7 +16,7 @@ class AdminMedicineController extends Controller
      */
     public function index(Request $request)
     {
-        $search = trim((string) $request->query('q'));
+        $search = $request->textQuery('q');
         $categoryId = $request->query('category_id');
         $dosageForm = $request->query('dosage_form');
 

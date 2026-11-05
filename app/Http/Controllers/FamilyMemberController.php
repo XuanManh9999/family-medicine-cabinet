@@ -28,7 +28,7 @@ class FamilyMemberController extends Controller
             ]);
 
         // Tìm kiếm theo tên / bệnh nền / dị ứng
-        if ($search = trim((string) $request->query('q'))) {
+        if ($search = $request->textQuery('q')) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('allergies', 'like', "%{$search}%")
@@ -194,6 +194,12 @@ class FamilyMemberController extends Controller
         // Thành viên thường chỉ sửa thông tin sức khỏe của mình, không đổi liên kết tài khoản / quan hệ
         if (!$request->user()->canManageMembers()) {
             unset($data['user_id'], $data['relationship']);
+        }
+
+        // Hồ sơ của Chủ hộ sáng lập luôn gắn với tài khoản của họ: không cho gỡ liên kết
+        // (nếu gỡ được thì hồ sơ sẽ lọt qua lớp bảo vệ "không xóa hồ sơ Chủ hộ sáng lập")
+        if ($member->user_id && (int) $member->user_id === (int) $member->family?->created_by) {
+            unset($data['user_id']);
         }
 
         if ($request->hasFile('avatar_file')) {

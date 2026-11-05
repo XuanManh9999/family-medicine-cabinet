@@ -19,7 +19,7 @@ class AdminUserController extends Controller
      */
     public function index(Request $request)
     {
-        $search = trim((string) $request->query('q'));
+        $search = $request->textQuery('q');
         $role = $request->query('role');
 
         $query = User::with('family');
@@ -113,6 +113,8 @@ class AdminUserController extends Controller
             'password' => Hash::make($validated['password']),
             'remember_token' => Str::random(60),
         ])->save();
+        // Đăng xuất tài khoản khỏi mọi thiết bị đang đăng nhập
+        $user->invalidateSessions($request->user()->is($user) ? $request->session()->getId() : null);
 
         return back()->with('success', "Đã đặt lại mật khẩu mới cho tài khoản \"{$user->email}\" thành công!");
     }

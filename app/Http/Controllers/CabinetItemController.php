@@ -25,7 +25,7 @@ class CabinetItemController extends Controller
 
         $itemsQuery = $family->cabinetItems()->with('medicine.category');
 
-        if ($search = trim((string) $request->query('q'))) {
+        if ($search = $request->textQuery('q')) {
             $itemsQuery->where(function ($query) use ($search) {
                 $query->where('custom_name', 'like', "%{$search}%")
                     ->orWhere('batch_number', 'like', "%{$search}%")
@@ -35,7 +35,7 @@ class CabinetItemController extends Controller
             });
         }
 
-        if ($location = trim((string) $request->query('location'))) {
+        if ($location = $request->textQuery('location')) {
             $itemsQuery->where('storage_location', $location);
         }
 
@@ -178,7 +178,7 @@ class CabinetItemController extends Controller
         $family = $this->ensureFamily($request);
         $itemsQuery = $family->cabinetItems()->with('medicine.category');
 
-        if ($search = trim((string) $request->query('q'))) {
+        if ($search = $request->textQuery('q')) {
             $itemsQuery->where(function ($query) use ($search) {
                 $query->where('custom_name', 'like', "%{$search}%")
                     ->orWhere('batch_number', 'like', "%{$search}%")
@@ -188,7 +188,7 @@ class CabinetItemController extends Controller
             });
         }
 
-        if ($location = trim((string) $request->query('location'))) {
+        if ($location = $request->textQuery('location')) {
             $itemsQuery->where('storage_location', $location);
         }
 

@@ -19,7 +19,7 @@ class SmartAlertController extends Controller
         $level = $request->query('level');
         $type = $request->query('type');
         $status = $request->query('status', 'all'); // 'all', 'unread', 'read'
-        $search = trim((string)$request->query('q'));
+        $search = $request->textQuery('q');
 
         $query = $family->smartAlerts();
 
